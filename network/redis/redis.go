@@ -91,5 +91,3 @@ func (r *RedisNet) Done(party.ID) chan struct{} {
 	close(r.done)
 	return r.done
 }
-
-func (r *RedisNet) Quit(party.ID) {} // now only 2 participants

@@ -15,9 +15,6 @@ type Network interface {
 
 	// close network
 	Done(party.ID) chan struct{}
-
-	// remove participant from our list participants
-	Quit(party.ID)
 }
 
 // HandlerLoop blocks until the handler has finished. The result of the execution is given by Handler.Result().
