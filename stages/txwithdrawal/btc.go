@@ -25,6 +25,7 @@ func TxBTC() (*wire.MsgTx, error) {
 	prevOutPoint := wire.NewOutPoint(chainHash, 0xffffffff)
 	prevOut := wire.NewTxIn(prevOutPoint, nil, nil)
 	tx.AddTxIn(prevOut)
+	
 	// create output
 	// pkScript, err := hex.DecodeString("76a9148bbc3c1f4a2a3c8e6d091c8ebd0c3e2c4c7d66488ac")
 	// if err != nil {

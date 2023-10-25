@@ -189,5 +189,6 @@ func GetPubKeyFromConfigTaproot(keygenConfig *frost.TaprootConfig) (*crypto_ecds
 	if err != nil {
 		return nil, err
 	}
+	
 	return publicKeyECDSA.ToECDSA(), nil
 }
