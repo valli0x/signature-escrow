@@ -2,6 +2,7 @@ package btcfrost
 
 import (
 	"errors"
+
 	"github.com/valli0x/signature-escrow/network"
 
 	"github.com/taurusgroup/multi-party-sig/pkg/math/curve"
@@ -61,22 +62,54 @@ func FrostKeygenTaproot(id party.ID, ids party.IDSlice, threshold int, n network
 	return r.(*frost.TaprootConfig), nil
 }
 
-func FrostSignTaproot(c *frost.TaprootConfig, id party.ID, m []byte, signers party.IDSlice, n network.Network) error {
+func FrostSignTaproot(c *frost.TaprootConfig, id party.ID, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	network.HandlerLoop(id, h, n)
 
 	r, err := h.Result()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	signature := r.(taproot.Signature)
 	if !c.PublicKey.Verify(signature, m) {
-		return errors.New("failed to verify frost signature")
+		return nil, errors.New("failed to verify frost signature")
 	}
-	return nil
+	return signature, nil
+}
+
+// incomplete signature
+func FrostSignTaprootInc(c *frost.TaprootConfig, id party.ID, m []byte, signers party.IDSlice, n network.Network) (*protocol.Message, error) {
+	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
+	if err != nil {
+		return nil, err
+	}
+	msg, ok := <-h.Listen()
+	if !ok {
+		return nil, errors.New("failed to getting incomplete signature")
+	}
+	return msg, nil
+}
+
+func FrostSignTaprootCoSign(c *frost.TaprootConfig, id party.ID, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
+	if err != nil {
+		return nil, err
+	}
+	<-h.Listen() // skip first message
+	h.Accept(incSig)
+
+	r, err := h.Result()
+	if err != nil {
+		return nil, err
+	}
+	signature := r.(taproot.Signature)
+	if !c.PublicKey.Verify(signature, m) {
+		return nil, errors.New("failed to verify frost signature")
+	}
+	return signature, nil
 }

@@ -20,9 +20,13 @@ func TxETH(client *ethclient.Client, from string, to string, amount, gasLimit in
 		return nil, err
 	}
 
-	tx := types.NewTransaction(nonce, common.HexToAddress(to), big.NewInt(amount), uint64(gasLimit), gasPrice, []byte{})
-
-	return tx, nil
+	return types.NewTransaction(
+		nonce,
+		common.HexToAddress(to),
+		big.NewInt(amount),
+		uint64(gasLimit),
+		gasPrice,
+		[]byte{}), nil
 }
 
 func HashETH(client *ethclient.Client, tx *types.Transaction, chain int64) ([]byte, error) {

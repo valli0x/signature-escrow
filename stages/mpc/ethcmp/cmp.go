@@ -71,7 +71,7 @@ func CMPPreSignOnline(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	network.HandlerLoop(c.ID, h, n)
 
 	signResult, err := h.Result()
@@ -103,4 +103,36 @@ func CMPPreSign(c *cmp.Config, signers party.IDSlice, n network.Network, pl *poo
 		return nil, errors.New("failed to verify cmp presignature")
 	}
 	return preSignature, nil
+}
+
+// incomplete signature
+func CMPPreSignOnlineInc(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, n network.Network, pl *pool.Pool) (*protocol.Message, error) {
+	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
+	if err != nil {
+		return nil, err
+	}
+	msg, ok := <-h.Listen()
+	if !ok {
+		return nil, errors.New("failed to getting incomplete signature")
+	}
+	return msg, nil
+}
+
+func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, incSig *protocol.Message, n network.Network, pl *pool.Pool) (*ecdsa.Signature, error) {
+	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
+	if err != nil {
+		return nil, err
+	}
+	<-h.Listen() // skip first message
+	h.Accept(incSig)
+	
+	signResult, err := h.Result()
+	if err != nil {
+		return nil, err
+	}
+	signature := signResult.(*ecdsa.Signature)
+	if !signature.Verify(c.PublicPoint(), m) {
+		return nil, errors.New("failed to verify cmp signature")
+	}
+	return signature, nil
 }

@@ -18,8 +18,8 @@ import (
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 	"github.com/taurusgroup/multi-party-sig/protocols/frost"
 	"github.com/valli0x/signature-escrow/network/redis"
-	"github.com/valli0x/signature-escrow/stages/keygen/btcfrost"
-	"github.com/valli0x/signature-escrow/stages/keygen/ethcmp"
+	"github.com/valli0x/signature-escrow/stages/mpc/btcfrost"
+	"github.com/valli0x/signature-escrow/stages/mpc/ethcmp"
 )
 
 func TestKeygenCMP(t *testing.T) {

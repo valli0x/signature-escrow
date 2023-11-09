@@ -26,7 +26,7 @@ func RefillETH(ctx context.Context, client *ethclient.Client, addr common.Addres
 
 func RefillBTC(ctx context.Context, client *rpcclient.Client, addr btcutil.Address, expected int64) (bool, error) {
 	for {
-		balance, err := client.GetBalanceMinConf(addr.String(), 1) // TODO: min conf
+		balance, err := client.GetBalanceMinConf(addr.String(), 1)
 		if err != nil {
 			return false, err
 		}
