@@ -55,6 +55,10 @@ type flower struct {
 }
 
 func (p *Pollination) Pollinate() (bool, error) {
+	if p.Flower1 == nil || p.Flower2 == nil {
+		return false, nil
+	}
+	
 	f1 := p.Flower1
 	f2 := p.Flower2
 

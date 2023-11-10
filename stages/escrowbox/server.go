@@ -20,13 +20,13 @@ import (
 
 type Server struct {
 	port    string
-	storage logical.Storage
+	stor logical.Storage
 }
 
-func NewServer(port string, storage logical.Storage) *Server {
+func NewServer(port string, stor logical.Storage) *Server {
 	return &Server{
 		port:    port,
-		storage: storage,
+		stor: stor,
 	}
 }
 
@@ -43,8 +43,8 @@ func (s *Server) Start() error {
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       5 * time.Minute,
-	}
-	go server.Serve(ln)
+	}	
+	server.Serve(ln)
 
 	return nil
 }
@@ -61,7 +61,7 @@ func (s *Server) escrow() http.Handler {
 
 			id, pub := values["id"], values["pub"]
 
-			pollination, err := GetPollination(id, s.storage)
+			pollination, err := GetPollination(id, s.stor)
 			if err != nil {
 				respondError(w, http.StatusNotFound, nil)
 			}
@@ -131,7 +131,7 @@ func (s *Server) escrow() http.Handler {
 				Sig:  sigB,
 			}
 
-			pollination, err := GetPollination(id, s.storage)
+			pollination, err := GetPollination(id, s.stor)
 			if err != nil {
 				respondError(w, http.StatusNotFound, nil)
 			}
@@ -143,7 +143,7 @@ func (s *Server) escrow() http.Handler {
 				respondError(w, http.StatusBadRequest, nil)
 			}
 
-			if err := PutPollination(id, pollination, s.storage); err != nil {
+			if err := PutPollination(id, pollination, s.stor); err != nil {
 				respondError(w, http.StatusInternalServerError, nil)
 			}
 
