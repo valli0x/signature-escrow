@@ -1,4 +1,4 @@
-package ethcmp
+package mpccmp
 
 import (
 	"errors"

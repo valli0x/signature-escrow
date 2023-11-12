@@ -81,10 +81,10 @@ func (s *Server) escrow() http.Handler {
 			} else {
 				signature = hex.EncodeToString(pollination.Flower1.Sig)
 			}
+
 			respondOk(w, map[string]string{
 				"signature": signature,
 			})
-
 		case http.MethodPost:
 			// parsing data
 			data := map[string]interface{}{}
@@ -123,7 +123,7 @@ func (s *Server) escrow() http.Handler {
 				respondError(w, http.StatusBadRequest, nil)
 			}
 
-			flower := &flower{ // create flower
+			flower := &flower{ 
 				Alg:  SignaturesType(alg),
 				ID:   id,
 				Pub:  pubB,

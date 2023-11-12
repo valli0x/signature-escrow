@@ -9,6 +9,7 @@ import (
 )
 
 type RuntimeConfig struct {
+	URL           string            `yaml:"url"`
 	StorageType   string            `yaml:"storage_type"`
 	StorageConfig map[string]string `yaml:"storage_config"`
 }

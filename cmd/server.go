@@ -33,7 +33,6 @@ func StartServer() *cobra.Command {
 		Args:         cobra.ExactArgs(0),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			// create logger
 			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
 				Name:   "server command",
 				Output: os.Stdout,
@@ -41,16 +40,16 @@ func StartServer() *cobra.Command {
 			})
 
 			logger.Info("create storage...")
-			storType := RuntimeConfig.StorageType
-			storConf := RuntimeConfig.StorageConfig
-			stor, err := storage.CreateBackend("server", storType, serverFlags.Password, storConf, logger.Named("storage"))
+			stor, err := storage.CreateBackend(
+				"server",
+				RuntimeConfig.StorageType, serverFlags.Password, RuntimeConfig.StorageConfig,
+				logger.Named("storage"))
 			if err != nil {
 				return err
 			}
 
 			logger.Info("storage server...")
-			server := escrowbox.NewServer(serverFlags.Port, stor)
-			if err := server.Start(); err != nil {
+			if err := escrowbox.NewServer(serverFlags.Port, stor).Start(); err != nil {
 				return err
 			}
 			return nil

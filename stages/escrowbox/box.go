@@ -15,15 +15,15 @@ import (
 type SignaturesType string
 
 const (
-	ecdsaType   SignaturesType = "ecdsa"
-	schnorrType SignaturesType = "schnorr"
+	ECDSAType   SignaturesType = "ecdsa"
+	SchnorrType SignaturesType = "schnorr"
 )
 
 func Validate(alg SignaturesType, p, h, s []byte) (bool, error) {
 	switch alg {
-	case ecdsaType:
+	case ECDSAType:
 		return crypto.VerifySignature(p, h, s), nil
-	case schnorrType:
+	case SchnorrType:
 		sig, err := schnorr.ParseSignature(s)
 		if err != nil {
 			return false, err
@@ -104,7 +104,7 @@ func (p *Pollination) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func GetPollination(id string, storage logical.Storage) (*Pollination, error) { // TODO
+func GetPollination(id string, storage logical.Storage) (*Pollination, error) {
 	entry, err := storage.Get(context.Background(), id)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func GetPollination(id string, storage logical.Storage) (*Pollination, error) { 
 	return p, nil
 }
 
-func PutPollination(id string, p *Pollination, storage logical.Storage) error { // TODO
+func PutPollination(id string, p *Pollination, storage logical.Storage) error {
 	data, err  := p.MarshalBinary()
 	if err != nil {
 		return err

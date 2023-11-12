@@ -1,4 +1,4 @@
-package btcfrost
+package mpcfrost
 
 import (
 	"errors"

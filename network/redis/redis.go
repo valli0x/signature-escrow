@@ -8,8 +8,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/redis/go-redis/v9"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
-
-	"github.com/taurusgroup/multi-party-sig/pkg/party"
+	"github.com/valli0x/signature-escrow/network"
 )
 
 type RedisNet struct {
@@ -21,7 +20,7 @@ type RedisNet struct {
 	mtx          sync.Mutex
 }
 
-func NewRedisNet(addr, accept, send string, logger hclog.Logger) (*RedisNet, error) {
+func NewRedisNet(addr, accept, send string, logger hclog.Logger) (network.Network, error) {
 	r := &RedisNet{
 		accept: accept,
 		send:   send,
@@ -62,7 +61,7 @@ func (r *RedisNet) receiving() {
 	}
 }
 
-func (r *RedisNet) Next(party.ID) <-chan *protocol.Message {
+func (r *RedisNet) Next() <-chan *protocol.Message {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	return r.out
@@ -84,7 +83,7 @@ func (r *RedisNet) Send(msg *protocol.Message) {
 	}
 }
 
-func (r *RedisNet) Done(party.ID) chan struct{} {
+func (r *RedisNet) Done() chan struct{} {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 

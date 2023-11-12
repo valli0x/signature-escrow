@@ -83,9 +83,9 @@ func TestTxBTC_ETH(t *testing.T) {
 		Data: hashETH,
 	})
 
-	msg := <-net1.Next("a")
+	msg := <-net1.Next()
 	fmt.Println("a len:", len(msg.Data))
 
-	msg2 := <-net2.Next("b")
+	msg2 := <-net2.Next()
 	fmt.Println("b len:", len(msg2.Data))
 }

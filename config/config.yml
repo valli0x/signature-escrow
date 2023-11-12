@@ -1,3 +1,6 @@
+# network configuration
+url: localhost:6379
+
 # storage configuration
 storage_type: postgresql
 storage_config:
