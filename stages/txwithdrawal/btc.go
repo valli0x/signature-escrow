@@ -18,7 +18,3 @@ func TxBTC(btcAPI gobcy.API, from, to string, amount int64) (*gobcy.TXSkel, erro
 func HashBTC(tx *gobcy.TXSkel) ([]byte, error) {
 	return hex.DecodeString(tx.ToSign[0])
 }
-
-func SendBTC() {
-
-}

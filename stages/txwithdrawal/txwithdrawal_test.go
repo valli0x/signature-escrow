@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	ethAPI   = "https://eth.getblock.io/b6b0bd26-7e5b-4037-88a1-8b43a93d6ba3/mainnet"
-	gobcyAPI = "79e2a606685e484e8836e323d056df3d"
+	ethURL   = ""
+	gobcyToken = ""
 )
 
 // A getting BTC B and B getting ETH A
@@ -39,10 +39,10 @@ func TestTxBTC_ETH(t *testing.T) {
 	}
 
 	// setup btc network
-	btcAPI := gobcy.API{Token: gobcyAPI, Coin: "btc", Chain: "main"}
+	btcAPI := gobcy.API{Token: gobcyToken, Coin: "btc", Chain: "main"}
 
 	// setup eth network
-	client, err := ethclient.Dial(ethAPI)
+	client, err := ethclient.Dial(ethURL)
 	if err != nil {
 		t.Fatal("net a error", err)
 		return

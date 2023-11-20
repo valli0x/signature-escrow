@@ -14,12 +14,10 @@ func TxETH(client *ethclient.Client, from string, to string, amount, gasLimit in
 	if err != nil {
 		return nil, err
 	}
-
 	gasPrice, err := client.SuggestGasPrice(context.Background())
 	if err != nil {
 		return nil, err
 	}
-
 	return types.NewTransaction(
 		nonce,
 		common.HexToAddress(to),
@@ -42,6 +40,5 @@ func SendEthTx(client *ethclient.Client, signedTx *types.Transaction) (string, e
 	if err != nil {
 		return "", err
 	}
-
 	return signedTx.Hash().String(), nil
 }
