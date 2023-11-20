@@ -106,26 +106,26 @@ func CMPPreSign(c *cmp.Config, signers party.IDSlice, n network.Network, pl *poo
 }
 
 // incomplete signature
-func CMPPreSignOnlineInc(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, n network.Network, pl *pool.Pool) (*protocol.Message, error) {
+func CMPPreSignOnlineInc(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, pl *pool.Pool) (*protocol.Message, error) {
 	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
 	if err != nil {
 		return nil, err
 	}
-	msg, ok := <-h.Listen()
+	round8, ok := <-h.Listen()
 	if !ok {
 		return nil, errors.New("failed to getting incomplete signature")
 	}
-	return msg, nil
+	return round8, nil
 }
 
-func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, incSig *protocol.Message, n network.Network, pl *pool.Pool) (*ecdsa.Signature, error) {
+func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, incSig *protocol.Message, pl *pool.Pool) (*ecdsa.Signature, error) {
 	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
 	if err != nil {
 		return nil, err
 	}
 	<-h.Listen() // skip first message
 	h.Accept(incSig)
-	
+
 	signResult, err := h.Result()
 	if err != nil {
 		return nil, err
@@ -135,4 +135,43 @@ func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m [
 		return nil, errors.New("failed to verify cmp signature")
 	}
 	return signature, nil
+}
+
+// get a signature in ethereum format
+func SigEthereum(sig *ecdsa.Signature) ([]byte, error) {
+	IsOverHalfOrder := sig.S.IsOverHalfOrder() // s-values greater than secp256k1n/2 are considered invalid
+
+	if IsOverHalfOrder {
+		sig.S.Negate()
+	}
+
+	r, err := sig.R.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	s, err := sig.S.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	rs := make([]byte, 0, 65)
+	rs = append(rs, r...)
+	rs = append(rs, s...)
+
+	if IsOverHalfOrder {
+		v := rs[0] - 2 // Convert to Ethereum signature format with 'recovery id' v at the end.
+		copy(rs, rs[1:])
+		rs[64] = v ^ 1
+	} else {
+		v := rs[0] - 2
+		copy(rs, rs[1:])
+		rs[64] = v
+	}
+
+	r[0] = rs[64] + 2
+	if err := sig.R.UnmarshalBinary(r); err != nil {
+		return nil, err
+	}
+
+	return rs, nil
 }

@@ -12,9 +12,10 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	"github.com/valli0x/signature-escrow/network/redis"
 )
+
 const (
-	ethAPI = ""
-	gobcyAPI = ""
+	ethAPI   = "https://eth.getblock.io/b6b0bd26-7e5b-4037-88a1-8b43a93d6ba3/mainnet"
+	gobcyAPI = "79e2a606685e484e8836e323d056df3d"
 )
 
 // A getting BTC B and B getting ETH A
@@ -38,8 +39,7 @@ func TestTxBTC_ETH(t *testing.T) {
 	}
 
 	// setup btc network
-	tokenType, mainNet := "btc", "main"
-	btcAPI := gobcy.API{gobcyAPI, tokenType, mainNet}
+	btcAPI := gobcy.API{Token: gobcyAPI, Coin: "btc", Chain: "main"}
 
 	// setup eth network
 	client, err := ethclient.Dial(ethAPI)
@@ -50,7 +50,7 @@ func TestTxBTC_ETH(t *testing.T) {
 
 	// BTC and ETH addresses
 	bitcoinAddrA := "3HJJTwitVttoZVmYKgBD7c7CqqazWr8Nhv"
-	bitcoinAddrB := "1CemHo6ifEeMgS9FiowvEXw8dvLof6PfpN"
+	bitcoinAddrB := "1CK6KHY6MHgYvmRQ4PAafKYDrg1ejbH1cE"
 
 	ethereumAddrA := "0xD87a8b63aFdD130Fa2264B4fd3D670ce35E7771B"
 	ethereumAddrB := "0x31F9E5CF25de6faE56eb971D6e788C0B62F8f139"
@@ -60,7 +60,7 @@ func TestTxBTC_ETH(t *testing.T) {
 	if err != nil {
 		t.Fatal("error a TxBTC", err)
 	}
-	hashBTC, err := HashBTC(txBTC.Trans)
+	hashBTC, err := HashBTC(txBTC)
 	if err != nil {
 		t.Fatal("error a HashBTC", err)
 	}

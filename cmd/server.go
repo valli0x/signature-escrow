@@ -19,11 +19,11 @@ var (
 )
 
 func init() {
-	serverStart := StartServer()
-	serverStart.PersistentFlags().StringVar(&serverFlags.Port, "port", ":8080", "servers port")
-	serverStart.PersistentFlags().StringVar(&serverFlags.Port, "pass", "", "password for storage")
+	command := StartServer()
+	command.PersistentFlags().StringVar(&serverFlags.Port, "port", ":8282", "servers port")
+	command.PersistentFlags().StringVar(&serverFlags.Password, "pass", "", "password for storage")
 
-	RootCmd.AddCommand(serverStart)
+	RootCmd.AddCommand(command)
 }
 
 func StartServer() *cobra.Command {
@@ -48,7 +48,7 @@ func StartServer() *cobra.Command {
 				return err
 			}
 
-			logger.Info("storage server...")
+			logger.Info("run server on port " + serverFlags.Port)
 			if err := escrowbox.NewServer(serverFlags.Port, stor).Start(); err != nil {
 				return err
 			}

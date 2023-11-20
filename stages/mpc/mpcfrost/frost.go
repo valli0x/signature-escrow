@@ -62,13 +62,13 @@ func FrostKeygenTaproot(id party.ID, ids party.IDSlice, threshold int, n network
 	return r.(*frost.TaprootConfig), nil
 }
 
-func FrostSignTaproot(c *frost.TaprootConfig, id party.ID, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+func FrostSignTaproot(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	network.HandlerLoop(id, h, n)
+	network.HandlerLoop(c.ID, h, n)
 
 	r, err := h.Result()
 	if err != nil {
@@ -82,27 +82,78 @@ func FrostSignTaproot(c *frost.TaprootConfig, id party.ID, m []byte, signers par
 	return signature, nil
 }
 
+/*
+	incompelete signature:
+	send a message: round 2, from: a, to , protocol: frost/sign-threshold-taproot
+	accept: a message: round 2, from: b, to , protocol: frost/sign-threshold-taproot
+	send a message: round 3, from: a, to , protocol: frost/sign-threshold-taproot
+
+	complete signature:
+	accept: a message: round 3, from: b, to , protocol: frost/sign-threshold-taproot
+*/
+
 // incomplete signature
-func FrostSignTaprootInc(c *frost.TaprootConfig, id party.ID, m []byte, signers party.IDSlice, n network.Network) (*protocol.Message, error) {
+func FrostSignTaprootInc(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Network) error {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	msg, ok := <-h.Listen()
+
+	// send round2
+	round2, ok := <-h.Listen()
 	if !ok {
-		return nil, errors.New("failed to getting incomplete signature")
+		return errors.New("failed to getting incomplete signature, send round2")
 	}
-	return msg, nil
+	n.Send(round2)
+
+	// accept round2
+	round2, ok = <-n.Next()
+	if !ok {
+		return errors.New("failed to getting incomplete signature, accept round2")
+	}
+	h.Accept(round2)
+
+	// send round3
+	round3, ok := <-h.Listen()
+	if !ok {
+		return errors.New("failed to getting incomplete signature, send round3")
+	}
+	n.Send(round3)
+
+	return nil
 }
 
-func FrostSignTaprootCoSign(c *frost.TaprootConfig, id party.ID, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+func FrostSignTaprootCoSign(c *frost.TaprootConfig, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return nil, err
 	}
-	<-h.Listen() // skip first message
-	h.Accept(incSig)
 
+	// send round2
+	round2, ok := <-h.Listen()
+	if !ok {
+		return nil, errors.New("failed to getting incomplete signature, send round2")
+	}
+	n.Send(round2)
+
+	// accept round2
+	round2, ok = <-n.Next()
+	if !ok {
+		return nil, errors.New("failed to getting incomplete signature, accept round2")
+	}
+	h.Accept(round2)
+
+	// skip own round3
+	<-h.Listen()
+	
+	// accept round3
+	round3, ok := <-n.Next()
+	if !ok {
+		return nil, errors.New("failed to getting incomplete signature, accept round3")
+	}
+	h.Accept(round3)
+
+	// getting complete signature
 	r, err := h.Result()
 	if err != nil {
 		return nil, err

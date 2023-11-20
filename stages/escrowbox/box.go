@@ -3,40 +3,11 @@ package escrowbox
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/valli0x/signature-escrow/validation"
 )
-
-type SignaturesType string
-
-const (
-	ECDSAType   SignaturesType = "ecdsa"
-	SchnorrType SignaturesType = "schnorr"
-)
-
-func Validate(alg SignaturesType, p, h, s []byte) (bool, error) {
-	switch alg {
-	case ECDSAType:
-		return crypto.VerifySignature(p, h, s), nil
-	case SchnorrType:
-		sig, err := schnorr.ParseSignature(s)
-		if err != nil {
-			return false, err
-		}
-		pub, err := schnorr.ParsePubKey(p)
-		if err != nil {
-			return false, nil
-		}
-		return sig.Verify(h, pub), nil
-	default:
-		return false, errors.New("unknown alg type")
-	}
-}
 
 type Pollination struct {
 	Flower1, Flower2 *flower
@@ -50,7 +21,7 @@ type pollinationMarshal struct {
 
 type flower struct {
 	ID             string
-	Alg            SignaturesType
+	Alg            validation.SignaturesType
 	Pub, Hash, Sig []byte
 }
 
@@ -58,16 +29,16 @@ func (p *Pollination) Pollinate() (bool, error) {
 	if p.Flower1 == nil || p.Flower2 == nil {
 		return false, nil
 	}
-	
+
 	f1 := p.Flower1
 	f2 := p.Flower2
 
-	f1Pollinated, err := Validate(f1.Alg, f1.Pub, f1.Hash, f2.Sig)
+	f1Pollinated, err := validation.Validate(f1.Alg, f1.Pub, f1.Hash, f2.Sig)
 	if err != nil {
 		return false, err
 	}
 
-	f2Pollinated, err := Validate(f2.Alg, f2.Pub, f2.Hash, f1.Sig)
+	f2Pollinated, err := validation.Validate(f2.Alg, f2.Pub, f2.Hash, f1.Sig)
 	if err != nil {
 		return false, err
 	}
@@ -79,10 +50,22 @@ func (p *Pollination) Pollinate() (bool, error) {
 func (p *Pollination) AddFlower(flower *flower) {
 	if p.Flower1 == nil || bytes.Equal(p.Flower1.Pub, flower.Pub) {
 		p.Flower1 = flower
+		return
 	}
 	if p.Flower2 == nil || bytes.Equal(p.Flower2.Pub, flower.Pub) {
 		p.Flower2 = flower
+		return
 	}
+}
+
+func (p *Pollination) GetFlower(pub []byte) *flower {
+	if p.Flower1 != nil && bytes.Equal(p.Flower1.Pub, pub) {
+		return p.Flower1
+	}
+	if p.Flower2 != nil && bytes.Equal(p.Flower2.Pub, pub) {
+		return p.Flower2
+	}
+	return nil
 }
 
 func (p *Pollination) MarshalBinary() ([]byte, error) {
@@ -110,7 +93,7 @@ func GetPollination(id string, storage logical.Storage) (*Pollination, error) {
 		return nil, err
 	}
 	if entry == nil {
-		return nil, fmt.Errorf("entry not found")
+		return nil, nil
 	}
 	p := &Pollination{}
 	if err := p.UnmarshalBinary(entry.Value); err != nil {
@@ -120,7 +103,7 @@ func GetPollination(id string, storage logical.Storage) (*Pollination, error) {
 }
 
 func PutPollination(id string, p *Pollination, storage logical.Storage) error {
-	data, err  := p.MarshalBinary()
+	data, err := p.MarshalBinary()
 	if err != nil {
 		return err
 	}

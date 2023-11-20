@@ -36,3 +36,12 @@ func HashETH(client *ethclient.Client, tx *types.Transaction, chain int64) ([]by
 	}
 	return types.NewLondonSigner(chainID.SetInt64(chain)).Hash(tx).Bytes(), nil
 }
+
+func SendEthTx(client *ethclient.Client, signedTx *types.Transaction) (string, error) {
+	err := client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return "", err
+	}
+
+	return signedTx.Hash().String(), nil
+}

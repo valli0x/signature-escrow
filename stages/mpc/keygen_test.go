@@ -1,38 +1,25 @@
-package keygen
+package mpc
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 	"github.com/taurusgroup/multi-party-sig/protocols/frost"
-	"github.com/valli0x/signature-escrow/network/redis"
+	"github.com/valli0x/signature-escrow/network/ch"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
 )
 
 func TestKeygenCMP(t *testing.T) {
-	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-		Output:     os.Stdout,
-		Level:      hclog.DefaultLevel,
-		JSONFormat: false,
-	})
-
-	net1, err := redis.NewRedisNet("localhost:6379", "a", "b", logger.Named("a"))
-	if err != nil {
-		t.Fatal("net a error", err)
-		return
-	}
-
-	net2, err := redis.NewRedisNet("localhost:6379", "b", "a", logger.Named("b"))
-	if err != nil {
-		t.Fatal("net a error", err)
-	}
+	var err error
+	net1, send1 := ch.NewNetwork()
+	net2, send2 := ch.NewNetwork()
+	net1.SetSendCh(send2)
+	net2.SetSendCh(send1)
 
 	var configA, configB *cmp.Config
 
@@ -81,22 +68,11 @@ func TestKeygenCMP(t *testing.T) {
 }
 
 func TestKeygenFROST(t *testing.T) {
-	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-		Output:     os.Stdout,
-		Level:      hclog.DefaultLevel,
-		JSONFormat: false,
-	})
-
-	net1, err := redis.NewRedisNet("localhost:6379", "a", "b", logger.Named("a"))
-	if err != nil {
-		t.Fatal("net a error", err)
-		return
-	}
-
-	net2, err := redis.NewRedisNet("localhost:6379", "b", "a", logger.Named("b"))
-	if err != nil {
-		t.Fatal("net a error", err)
-	}
+	var err error
+	net1, send1 := ch.NewNetwork()
+	net2, send2 := ch.NewNetwork()
+	net1.SetSendCh(send2)
+	net2.SetSendCh(send1)
 
 	var configA, configB *frost.TaprootConfig
 

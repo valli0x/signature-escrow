@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	crypto_ecdsa "crypto/ecdsa"
-
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -14,12 +12,12 @@ import (
 )
 
 func PrintAddressPubKeyTaproot(name string, c *frost.TaprootConfig) error {
-	pubkeyECDSA, err := GetPubKeyFromConfigTaproot(c)
+	pubkeyECDSA, err := schnorr.ParsePubKey(c.PublicKey)
 	if err != nil {
 		return err
 	}
 
-	pub := crypto.FromECDSAPub(pubkeyECDSA)
+	pub := crypto.FromECDSAPub(pubkeyECDSA.ToECDSA())
 	address, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(pub), &chaincfg.MainNetParams)
 	if err != nil {
 		return err
@@ -30,11 +28,21 @@ func PrintAddressPubKeyTaproot(name string, c *frost.TaprootConfig) error {
 	return nil
 }
 
-func GetPubKeyFromConfigTaproot(keygenConfig *frost.TaprootConfig) (*crypto_ecdsa.PublicKey, error) {
-	publicKeyECDSA, err := schnorr.ParsePubKey(keygenConfig.PublicKey)
+func GetPublicKeyByte(c *frost.TaprootConfig) ([]byte, error) {	
+	return c.PublicKey, nil
+}
+
+func GetAddress(c *frost.TaprootConfig) (*btcutil.AddressPubKeyHash, error) {
+	publicKeyECDSA, err := schnorr.ParsePubKey(c.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return publicKeyECDSA.ToECDSA(), nil
+	pub := crypto.FromECDSAPub(publicKeyECDSA.ToECDSA())
+	address, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(pub), &chaincfg.MainNetParams)
+	if err != nil {
+		return nil, err
+	}
+
+	return address, nil
 }

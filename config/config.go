@@ -9,9 +9,10 @@ import (
 )
 
 type RuntimeConfig struct {
-	URL           string            `yaml:"url"`
+	Network       string            `yaml:"network"`
 	StorageType   string            `yaml:"storage_type"`
 	StorageConfig map[string]string `yaml:"storage_config"`
+	Escrow        string            `yaml:"escrow"`
 }
 
 func NewConfig() *RuntimeConfig {

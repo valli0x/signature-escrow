@@ -1,7 +1,10 @@
 # network configuration
-url: localhost:6379
+network: localhost:6379
 
 # storage configuration
-storage_type: postgresql
+storage_type: file
 storage_config:
-    connection_url: "postgresql://root:root@127.0.0.1:5432/secrests1?sslmode=disable"
+    path: "./data"
+
+# escrow address
+escrow: http://localhost:8282

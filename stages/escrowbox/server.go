@@ -3,7 +3,6 @@ package escrowbox
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,16 +15,17 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
+	"github.com/valli0x/signature-escrow/validation"
 )
 
 type Server struct {
-	port    string
+	port string
 	stor logical.Storage
 }
 
 func NewServer(port string, stor logical.Storage) *Server {
 	return &Server{
-		port:    port,
+		port: port,
 		stor: stor,
 	}
 }
@@ -43,7 +43,7 @@ func (s *Server) Start() error {
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       5 * time.Minute,
-	}	
+	}
 	server.Serve(ln)
 
 	return nil
@@ -52,39 +52,42 @@ func (s *Server) Start() error {
 func (s *Server) escrow() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodGet:
-			data := parseQuery(r.URL.Query())
-			values := map[string]string{}
-			if err := mapstructure.Decode(data, values); err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-			}
+		// case http.MethodGet:
+		// 	data := parseQuery(r.URL.Query())
+		// 	values := map[string]string{}
+		// 	if err := mapstructure.Decode(data, values); err != nil {
+		// 		respondError(w, http.StatusBadRequest, nil)
+		// 		return
+		// 	}
 
-			id, pub := values["id"], values["pub"]
+		// 	id, pub := values["id"], values["pub"]
 
-			pollination, err := GetPollination(id, s.stor)
-			if err != nil {
-				respondError(w, http.StatusNotFound, nil)
-			}
+		// 	pollination, err := GetPollination(id, s.stor)
+		// 	if err != nil {
+		// 		respondError(w, http.StatusNotFound, nil)
+		// 		return
+		// 	}
 
-			pubB, err := base64.StdEncoding.DecodeString(pub)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-			}
+		// pubB, err := base64.StdEncoding.DecodeString(pub)
+		// if err != nil {
+		// 	respondError(w, http.StatusBadRequest, nil)
+		// 	return
+		// }
 
-			if !pollination.Pollinated {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf("invalid"))
-			}
+		// if !pollination.Pollinated {
+		// 	respondError(w, http.StatusInternalServerError, fmt.Errorf("invalid"))
+		// 	return
+		// }
 
-			signature := ""
-			if bytes.Equal(pollination.Flower1.Pub, pubB) {
-				signature = hex.EncodeToString(pollination.Flower2.Sig)
-			} else {
-				signature = hex.EncodeToString(pollination.Flower1.Sig)
-			}
+		// flower := pollination.GetFlower(pubB)
+		// if flower == nil {
+		// 	respondOk(w, nil)
+		// 	return
+		// }
 
-			respondOk(w, map[string]string{
-				"signature": signature,
-			})
+		// respondOk(w, map[string]string{
+		// 	"signature": base64.StdEncoding.EncodeToString(flower.Sig),
+		// })
 		case http.MethodPost:
 			// parsing data
 			data := map[string]interface{}{}
@@ -92,78 +95,94 @@ func (s *Server) escrow() http.Handler {
 			if err == io.EOF {
 				data, err = nil, nil
 				respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
+				return
 			}
 			if err != nil {
-				status := http.StatusBadRequest
-				logical.AdjustErrorStatusCode(&status, err)
-				respondError(w, status, fmt.Errorf("error parsing JSON"))
+				respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
+				return
 			}
-
-			values := map[string]string{}
-			if err := mapstructure.Decode(data, values); err != nil {
+			r := &req{}
+			if err := mapstructure.Decode(data, r); err != nil {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
 
-			alg, id, pub, hash, sig := values["alg"], values["id"], values["pub"], values["hash"], values["sig"]
-
-			if alg == "" || id == "" || pub == "" || hash == "" || sig == "" {
+			// create flower
+			if r.Alg == "" || r.Id == "" || r.Pub == "" || r.Hash == "" || r.Sig == "" {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
 
-			pubB, err := base64.StdEncoding.DecodeString(pub)
+			pubB, err := base64.StdEncoding.DecodeString(r.Pub)
 			if err != nil {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
-			hashB, err := base64.StdEncoding.DecodeString(hash)
+			hashB, err := base64.StdEncoding.DecodeString(r.Hash)
 			if err != nil {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
-			sigB, err := base64.StdEncoding.DecodeString(sig)
+			sigB, err := base64.StdEncoding.DecodeString(r.Sig)
 			if err != nil {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
 
-			flower := &flower{ 
-				Alg:  SignaturesType(alg),
-				ID:   id,
+			flower := &flower{
+				Alg:  validation.SignaturesType(r.Alg),
+				ID:   r.Id,
 				Pub:  pubB,
 				Hash: hashB,
 				Sig:  sigB,
 			}
 
-			pollination, err := GetPollination(id, s.stor)
+			// pollination
+			pollination, err := GetPollination(r.Id, s.stor)
 			if err != nil {
 				respondError(w, http.StatusNotFound, nil)
+				return
 			}
 
+			if pollination == nil {
+				pollination = &Pollination{} // create pollination
+			}
 			pollination.AddFlower(flower)
 
 			pollinated, err := pollination.Pollinate()
 			if err != nil {
 				respondError(w, http.StatusBadRequest, nil)
+				return
 			}
 
-			if err := PutPollination(id, pollination, s.stor); err != nil {
+			if err := PutPollination(r.Id, pollination, s.stor); err != nil {
 				respondError(w, http.StatusInternalServerError, nil)
+				return
 			}
 
 			if pollinated {
 				signature := ""
 				if bytes.Equal(pollination.Flower1.Pub, pubB) {
-					signature = hex.EncodeToString(pollination.Flower2.Sig)
+					signature = base64.StdEncoding.EncodeToString(pollination.Flower2.Sig)
 				} else {
-					signature = hex.EncodeToString(pollination.Flower1.Sig)
+					signature = base64.StdEncoding.EncodeToString(pollination.Flower1.Sig)
 				}
 
 				respondOk(w, map[string]string{
 					"signature": signature,
 				})
+				return
 			}
+
 			respondOk(w, nil)
 		default:
 			respondError(w, http.StatusMethodNotAllowed, nil)
 		}
 	})
+}
+
+type req struct {
+	Alg, Id, Pub, Hash, Sig string
 }
 
 func respondOk(w http.ResponseWriter, body interface{}) {
