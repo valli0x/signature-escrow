@@ -3,8 +3,8 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blockcypher/gobcy/v2"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -22,6 +24,7 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/network/redis"
+	"github.com/valli0x/signature-escrow/stages/checker"
 	"github.com/valli0x/signature-escrow/stages/escrowbox"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
@@ -44,6 +47,7 @@ func Client() *cobra.Command {
 			/*
 				setup
 			*/
+
 			// setup client
 			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
 				Name:   "client command",
@@ -86,6 +90,15 @@ func Client() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			// logger.Trace("create storage...")
+			// stor, err := storage.CreateBackend(
+			// 	"server",
+			// 	RuntimeConfig.StorageType, serverFlags.Password, RuntimeConfig.StorageConfig,
+			// 	logger.Named("storage"))
+			// if err != nil {
+			// 	return err
+			// }
 
 			if err := ping(net); err != nil {
 				return err
@@ -136,10 +149,10 @@ func Client() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// addressBTC, err := mpcfrost.GetAddress(configBTC)
-			// if err != nil {
-			// 	return err
-			// }
+			addressBTC, err := mpcfrost.GetAddress(configBTC)
+			if err != nil {
+				return err
+			}
 			space()
 
 			/*
@@ -147,19 +160,19 @@ func Client() *cobra.Command {
 			*/
 
 			fmt.Println("check escrow balance")
-			// var btcAPI gobcy.API
+			var btcAPI gobcy.API
 			var client *ethclient.Client
 			switch tokenType {
 			case "BTC":
-				// gobcyAPI, err := readGobcyAPI()
-				// if err != nil {
-				// 	return err
-				// }
-				// btcAPI = gobcy.API{Token: gobcyAPI, Coin: "btc", Chain: "main"}
-				// err = checker.RefillBTC(context.Background(), btcAPI, addressBTC, value)
-				// if err != nil {
-				// 	return err
-				// }
+				gobcyAPI, err := readGobcyAPI()
+				if err != nil {
+					return err
+				}
+				btcAPI = gobcy.API{Token: gobcyAPI, Coin: "btc", Chain: "main"}
+				err = checker.RefillBTC(context.Background(), btcAPI, addressBTC, value)
+				if err != nil {
+					return err
+				}
 			case "ETH":
 				ethAPI, err := readETHAPI()
 				if err != nil {
@@ -169,10 +182,10 @@ func Client() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				// err = checker.RefillETH(context.Background(), client, common.HexToAddress(addressETH), value)
-				// if err != nil {
-				// 	return err
-				// }
+				err = checker.RefillETH(context.Background(), client, common.HexToAddress(addressETH), value)
+				if err != nil {
+					return err
+				}
 			}
 			space()
 
@@ -184,56 +197,29 @@ func Client() *cobra.Command {
 			mywish := &txwithdrawal.TxWithdrawal{}
 			switch tokenType {
 			case "BTC":
-				// txBTC, err := txwithdrawal.TxBTC(btcAPI, addressBTC.String(), to, value)
-				// if err != nil {
-				// 	return err
-				// }
-				// hashBTC, err := txwithdrawal.HashBTC(txBTC)
-				// if err != nil {
-				// 	return err
-				// }
-				hash := "cb743e02db612e6e9f15360d3f46e68e8633b98137ae1e17f5d568cd199b450c"
-				hashBTC, err := hex.DecodeString(hash)
+				_, hashBTC, err := txwithdrawal.TxBTC(btcAPI, addressBTC.String(), to, value)
 				if err != nil {
 					return err
 				}
-				hashBTCstr := base64.StdEncoding.EncodeToString(hashBTC)
-
-				// incsig, err := mpcfrost.FrostSignTaprootInc1(configBTC, party.ID(my), hashBTC, signers, net)
-				// if err != nil {
-				// 	return err
-				// }
-
-				// incsigB, err := incsig.MarshalBinary()
-				// if err != nil {
-				// 	return err
-				// }
 
 				idpart, err := uuid.GenerateUUID()
 				if err != nil {
 					return err
 				}
-				idpart = strings.ReplaceAll(idpart, "-", "")[:16]
 
 				mywish = &txwithdrawal.TxWithdrawal{
-					IDPart:    idpart,
+					IDPart:    strings.ReplaceAll(idpart, "-", "")[:16],
 					TokenType: tokenType,
 					Address:   to,
 					Value:     value,
-					Hash:      hashBTCstr,
-					// IncSig:    base64.StdEncoding.EncodeToString(incsigB),
+					Hash:      base64.StdEncoding.EncodeToString(hashBTC),
 				}
 
 			case "ETH":
-				txETH, err := txwithdrawal.TxETH(client, addressETH, to, value, 21000)
+				_, hashETH, err := txwithdrawal.TxETH(client, addressETH, to, value, 21000, 1)
 				if err != nil {
 					return err
 				}
-				hashETH, err := txwithdrawal.HashETH(client, txETH, 1)
-				if err != nil {
-					return err
-				}
-				hashETHstr := base64.StdEncoding.EncodeToString(hashETH)
 
 				incsig, err := mpccmp.CMPPreSignOnlineInc(configETH, presignature, hashETH, pl)
 				if err != nil {
@@ -249,14 +235,13 @@ func Client() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				idpart = strings.ReplaceAll(idpart, "-", "")[:16]
 
 				mywish = &txwithdrawal.TxWithdrawal{
-					IDPart:    idpart,
+					IDPart:    strings.ReplaceAll(idpart, "-", "")[:16],
 					TokenType: tokenType,
 					Address:   to,
 					Value:     value,
-					Hash:      hashETHstr,
+					Hash:      base64.StdEncoding.EncodeToString(hashETH),
 					IncSig:    base64.StdEncoding.EncodeToString(incsigB),
 				}
 			}
@@ -286,6 +271,8 @@ func Client() *cobra.Command {
 			*/
 			logger.Trace("send incomplete signature to escrow agent and withdrawal tokens")
 
+			// 4.1 stage: creating complete signature
+
 			incsig := &protocol.Message{}
 			incsigB, err := base64.StdEncoding.DecodeString(anotherwish.IncSig)
 			if err != nil {
@@ -303,11 +290,10 @@ func Client() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				sig, err := mpcfrost.FrostSignTaprootCoSign(configBTC, incsig, hashB, signers, net)
+				anothersig, err = mpcfrost.FrostSignTaprootCoSign(configBTC, incsig, hashB, signers, net)
 				if err != nil {
 					return err
 				}
-				anothersig = sig
 			case "ETH":
 				// handling sign own withdrawal transaction BTC from escrow(taproot need 2 rounds)
 				myhashB, err := base64.StdEncoding.DecodeString(mywish.Hash)
@@ -327,18 +313,13 @@ func Client() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				// sigB, err := mpccmp.SigEthereum(sig)
-				// if err != nil {
-				// 	return err
-				// }
-				sigB, err := mpccmp.GetSigByte(sig)
+				anothersig, err = mpccmp.GetSigByte(sig)
 				if err != nil {
 					return err
 				}
-				anothersig = sigB
 			}
 
-			fmt.Printf("another signature: %s len: %d\n", hex.EncodeToString(anothersig), len(anothersig)) // !
+			// 4.2 stage: sending another complete and getting own signature
 
 			// post request to escrow agent
 			var pubkey string
@@ -365,18 +346,49 @@ func Client() *cobra.Command {
 				if mysig != nil {
 					break
 				}
+				postData["sig"] = ""
+
 				time.Sleep(time.Second * 5)
 			}
 
-			fmt.Printf("my signature: %s len %d\n", hex.EncodeToString(mysig), len(mysig)) // !
-			return
+			// 4.3 stage: withdrawal transaction from escrow
 
 			// withdrawal transaction
 			switch tokenType {
 			case "BTC":
-				// TODO: send transaction
+				txBTC, hashBTC, err := txwithdrawal.TxBTC(btcAPI, addressBTC.String(), to, value)
+				if err != nil {
+					return err
+				}
+				txBTC, err = txwithdrawal.WithSignatureBTC(txBTC, mysig)
+				if err != nil {
+					return err
+				}
+				if err := txwithdrawal.SendBTC(btcAPI, txBTC); err != nil {
+					return err
+				}
+				fmt.Println("hash withdrawal BTC tx: ", hashBTC)
 			case "ETH":
-				// TODO: send transaction
+				txETH, hashETH, err := txwithdrawal.TxETH(client, addressETH, to, value, 21000, 1)
+				if err != nil {
+					return err
+				}
+				sigECDSA, err := mpccmp.FromSigByte(mysig)
+				if err != nil {
+					return err
+				}
+				sigETH, err := mpccmp.SigEthereum(sigECDSA)
+				if err != nil {
+					return err
+				}
+				txETH, err = txwithdrawal.WithSignatureETH(client, txETH, sigETH, 1)
+				if err != nil {
+					return err
+				}
+				if err = txwithdrawal.SendTxETH(client, txETH); err != nil {
+					return err
+				}
+				fmt.Println("hash withdrawal ETH tx: ", hashETH)
 			}
 
 			return nil

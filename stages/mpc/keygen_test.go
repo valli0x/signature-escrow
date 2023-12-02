@@ -9,15 +9,15 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 	"github.com/taurusgroup/multi-party-sig/protocols/frost"
-	"github.com/valli0x/signature-escrow/network/ch"
+	"github.com/valli0x/signature-escrow/network/testnet"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
 )
 
 func TestKeygenCMP(t *testing.T) {
 	var err error
-	net1, send1 := ch.NewNetwork()
-	net2, send2 := ch.NewNetwork()
+	net1, send1 := testnet.NewNetwork()
+	net2, send2 := testnet.NewNetwork()
 	net1.SetSendCh(send2)
 	net2.SetSendCh(send1)
 
@@ -69,8 +69,8 @@ func TestKeygenCMP(t *testing.T) {
 
 func TestKeygenFROST(t *testing.T) {
 	var err error
-	net1, send1 := ch.NewNetwork()
-	net2, send2 := ch.NewNetwork()
+	net1, send1 := testnet.NewNetwork()
+	net2, send2 := testnet.NewNetwork()
 	net1.SetSendCh(send2)
 	net2.SetSendCh(send1)
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/taurusgroup/multi-party-sig/pkg/ecdsa"
+	"github.com/taurusgroup/multi-party-sig/pkg/math/curve"
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 )
 
@@ -41,6 +42,17 @@ func GetSigByte(sig *ecdsa.Signature) ([]byte, error) {
 	data = append(data, r...)
 	data = append(data, s...)
 	return data, nil
+}
+
+func FromSigByte(s []byte) (*ecdsa.Signature, error) {
+	sig := ecdsa.EmptySignature(curve.Secp256k1{})
+	if err := sig.R.UnmarshalBinary(s[:33]); err != nil {
+		return nil, err
+	}
+	if err := sig.S.UnmarshalBinary(s[33:]); err != nil {
+		return nil, err
+	}
+	return &sig, nil
 }
 
 func GetPublicKeyByte(c *cmp.Config) ([]byte, error) {

@@ -3,40 +3,26 @@ package txwithdrawal
 import (
 	"encoding/hex"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/blockcypher/gobcy/v2"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/hashicorp/go-hclog"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
-	"github.com/valli0x/signature-escrow/network/redis"
+	"github.com/valli0x/signature-escrow/network/testnet"
 )
 
 const (
-	ethURL   = ""
+	ethURL     = ""
 	gobcyToken = ""
 )
 
 // A getting BTC B and B getting ETH A
 func TestTxBTC_ETH(t *testing.T) {
-	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-		Output:     os.Stdout,
-		Level:      hclog.DefaultLevel,
-		JSONFormat: false,
-	})
-
-	// setup network
-	net1, err := redis.NewRedisNet("localhost:6379", "a", "b", logger.Named("a"))
-	if err != nil {
-		t.Fatal("net a error", err)
-		return
-	}
-
-	net2, err := redis.NewRedisNet("localhost:6379", "b", "a", logger.Named("b"))
-	if err != nil {
-		t.Fatal("net a error", err)
-	}
+	var err error
+	net1, send1 := testnet.NewNetwork()
+	net2, send2 := testnet.NewNetwork()
+	net1.SetSendCh(send2)
+	net2.SetSendCh(send1)
 
 	// setup btc network
 	btcAPI := gobcy.API{Token: gobcyToken, Coin: "btc", Chain: "main"}
@@ -56,13 +42,9 @@ func TestTxBTC_ETH(t *testing.T) {
 	ethereumAddrB := "0x31F9E5CF25de6faE56eb971D6e788C0B62F8f139"
 
 	// send BTC tx
-	txBTC, err := TxBTC(btcAPI, bitcoinAddrB, bitcoinAddrA, 1)
+	_, hashBTC, err := TxBTC(btcAPI, bitcoinAddrB, bitcoinAddrA, 1)
 	if err != nil {
 		t.Fatal("error a TxBTC", err)
-	}
-	hashBTC, err := HashBTC(txBTC)
-	if err != nil {
-		t.Fatal("error a HashBTC", err)
 	}
 	fmt.Println("hash BTC:", hex.EncodeToString(hashBTC))
 	net1.Send(&protocol.Message{
@@ -70,13 +52,9 @@ func TestTxBTC_ETH(t *testing.T) {
 	})
 
 	// send ETH tx
-	txETH, err := TxETH(client, ethereumAddrA, ethereumAddrB, 0, 21000)
+	_, hashETH, err := TxETH(client, ethereumAddrA, ethereumAddrB, 0, 21000, 1)
 	if err != nil {
 		t.Fatal("error b TxETH", err)
-	}
-	hashETH, err := HashETH(client, txETH, 1)
-	if err != nil {
-		t.Fatal("error b HashETH", err)
 	}
 	fmt.Println("hash ETH:", hex.EncodeToString(hashETH))
 	net2.Send(&protocol.Message{

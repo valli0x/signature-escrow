@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
@@ -51,137 +50,104 @@ func (s *Server) Start() error {
 
 func (s *Server) escrow() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		// case http.MethodGet:
-		// 	data := parseQuery(r.URL.Query())
-		// 	values := map[string]string{}
-		// 	if err := mapstructure.Decode(data, values); err != nil {
-		// 		respondError(w, http.StatusBadRequest, nil)
-		// 		return
-		// 	}
-
-		// 	id, pub := values["id"], values["pub"]
-
-		// 	pollination, err := GetPollination(id, s.stor)
-		// 	if err != nil {
-		// 		respondError(w, http.StatusNotFound, nil)
-		// 		return
-		// 	}
-
-		// pubB, err := base64.StdEncoding.DecodeString(pub)
-		// if err != nil {
-		// 	respondError(w, http.StatusBadRequest, nil)
-		// 	return
-		// }
-
-		// if !pollination.Pollinated {
-		// 	respondError(w, http.StatusInternalServerError, fmt.Errorf("invalid"))
-		// 	return
-		// }
-
-		// flower := pollination.GetFlower(pubB)
-		// if flower == nil {
-		// 	respondOk(w, nil)
-		// 	return
-		// }
-
-		// respondOk(w, map[string]string{
-		// 	"signature": base64.StdEncoding.EncodeToString(flower.Sig),
-		// })
-		case http.MethodPost:
-			// parsing data
-			data := map[string]interface{}{}
-			_, err := parseJSONRequest(r, w, &data)
-			if err == io.EOF {
-				data, err = nil, nil
-				respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
-				return
-			}
-			if err != nil {
-				respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
-				return
-			}
-			r := &req{}
-			if err := mapstructure.Decode(data, r); err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-
-			// create flower
-			if r.Alg == "" || r.Id == "" || r.Pub == "" || r.Hash == "" || r.Sig == "" {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-
-			pubB, err := base64.StdEncoding.DecodeString(r.Pub)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-			hashB, err := base64.StdEncoding.DecodeString(r.Hash)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-			sigB, err := base64.StdEncoding.DecodeString(r.Sig)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-
-			flower := &flower{
-				Alg:  validation.SignaturesType(r.Alg),
-				ID:   r.Id,
-				Pub:  pubB,
-				Hash: hashB,
-				Sig:  sigB,
-			}
-
-			// pollination
-			pollination, err := GetPollination(r.Id, s.stor)
-			if err != nil {
-				respondError(w, http.StatusNotFound, nil)
-				return
-			}
-
-			if pollination == nil {
-				pollination = &Pollination{} // create pollination
-			}
-			pollination.AddFlower(flower)
-
-			pollinated, err := pollination.Pollinate()
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-
-			if err := PutPollination(r.Id, pollination, s.stor); err != nil {
-				respondError(w, http.StatusInternalServerError, nil)
-				return
-			}
-
-			if pollinated {
-				signature := ""
-				if bytes.Equal(pollination.Flower1.Pub, pubB) {
-					signature = base64.StdEncoding.EncodeToString(pollination.Flower2.Sig)
-				} else {
-					signature = base64.StdEncoding.EncodeToString(pollination.Flower1.Sig)
-				}
-
-				respondOk(w, map[string]string{
-					"signature": signature,
-				})
-				return
-			}
-
-			respondOk(w, nil)
-		default:
+		if r.Method != http.MethodPost {
 			respondError(w, http.StatusMethodNotAllowed, nil)
+			return
 		}
+		
+		// parsing data
+		data := map[string]interface{}{}
+		_, err := parseJSONRequest(r, w, &data)
+		if err == io.EOF {
+			data, err = nil, nil
+			respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
+			return
+		}
+		if err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
+			return
+		}
+		fr := &flowerRequest{}
+		if err := mapstructure.Decode(data, fr); err != nil {
+			respondError(w, http.StatusBadRequest, nil)
+			return
+		}
+
+		// 1 stage: create flower
+		if fr.Alg == "" || fr.Id == "" || fr.Pub == "" || fr.Hash == "" {
+			respondError(w, http.StatusBadRequest, nil)
+			return
+		}
+
+		flower := &flower{}
+		flower.Alg = validation.SignaturesType(fr.Alg)
+		flower.ID = fr.Id
+
+		pubB, err := base64.StdEncoding.DecodeString(fr.Pub)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, nil)
+			return
+		}
+		flower.Pub = pubB
+
+		hashB, err := base64.StdEncoding.DecodeString(fr.Hash)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, nil)
+			return
+		}
+		flower.Hash = hashB
+
+		if fr.Sig != "" {
+			sigB, err := base64.StdEncoding.DecodeString(fr.Sig)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, nil)
+				return
+			}
+			flower.Sig = sigB
+		}
+
+		// 2 stage: pollination
+		pollination, err := GetPollination(fr.Id, s.stor)
+		if err != nil {
+			respondError(w, http.StatusNotFound, nil)
+			return
+		}
+
+		if pollination == nil {
+			pollination = &Pollination{}
+		}
+		pollination.AddFlower(flower)
+
+		pollinated, err := pollination.Pollinate()
+		if err != nil {
+			respondError(w, http.StatusBadRequest, nil)
+			return
+		}
+
+		if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
+			respondError(w, http.StatusInternalServerError, nil)
+			return
+		}
+
+		if pollinated {
+			signature := ""
+			if bytes.Equal(pollination.Flower1.Pub, pubB) {
+				signature = base64.StdEncoding.EncodeToString(pollination.Flower2.Sig)
+			} else {
+				signature = base64.StdEncoding.EncodeToString(pollination.Flower1.Sig)
+			}
+
+			respondOk(w, map[string]string{
+				"signature": signature,
+			})
+			return
+		}
+
+		respondOk(w, nil)
 	})
 }
 
-type req struct {
+type flowerRequest struct {
 	Alg, Id, Pub, Hash, Sig string
 }
 
@@ -211,29 +177,6 @@ func respondError(w http.ResponseWriter, status int, err error) {
 
 	enc := json.NewEncoder(w)
 	enc.Encode(resp)
-}
-
-func parseQuery(values url.Values) map[string]interface{} {
-	data := map[string]interface{}{}
-	for k, v := range values {
-		// Skip the help key as this is a reserved parameter
-		if k == "help" {
-			continue
-		}
-
-		switch {
-		case len(v) == 0:
-		case len(v) == 1:
-			data[k] = v[0]
-		default:
-			data[k] = v
-		}
-	}
-
-	if len(data) > 0 {
-		return data
-	}
-	return nil
 }
 
 func parseJSONRequest(r *http.Request, w http.ResponseWriter, out interface{}) (io.ReadCloser, error) {

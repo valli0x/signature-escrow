@@ -28,18 +28,19 @@ func PrintAddressPubKeyTaproot(name string, c *frost.TaprootConfig) error {
 	return nil
 }
 
-func GetPublicKeyByte(c *frost.TaprootConfig) ([]byte, error) {	
+func GetPublicKeyByte(c *frost.TaprootConfig) ([]byte, error) {
 	return c.PublicKey, nil
 }
 
-func GetAddress(c *frost.TaprootConfig) (*btcutil.AddressPubKeyHash, error) {
-	publicKeyECDSA, err := schnorr.ParsePubKey(c.PublicKey)
+// SegWit address type
+func GetAddress(c *frost.TaprootConfig) (*btcutil.AddressWitnessPubKeyHash, error) {
+	pub, err := schnorr.ParsePubKey(c.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	pub := crypto.FromECDSAPub(publicKeyECDSA.ToECDSA())
-	address, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(pub), &chaincfg.MainNetParams)
+	witnessProg := btcutil.Hash160(pub.SerializeCompressed())
+	address, err := btcutil.NewAddressWitnessPubKeyHash(witnessProg, &chaincfg.MainNetParams)
 	if err != nil {
 		return nil, err
 	}
