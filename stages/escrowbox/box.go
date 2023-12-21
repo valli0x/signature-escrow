@@ -1,8 +1,8 @@
 package escrowbox
 
 import (
-	"bytes"
 	"context"
+	"sync"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -10,13 +10,8 @@ import (
 )
 
 type Pollination struct {
-	Flower1, Flower2 *flower
-	Pollinated       bool
-}
-
-type pollinationMarshal struct {
-	Flower1, Flower2 *flower
-	Pollinated       bool
+	flower1, flower2 *flower
+	m                sync.Mutex
 }
 
 type flower struct {
@@ -25,13 +20,20 @@ type flower struct {
 	Pub, Hash, Sig []byte
 }
 
+func NewPollination() *Pollination {
+	return &Pollination{}
+}
+
 func (p *Pollination) Pollinate() (bool, error) {
-	if p.Flower1 == nil || p.Flower2 == nil {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	if p.flower1 == nil || p.flower2 == nil {
 		return false, nil
 	}
 
-	f1 := p.Flower1
-	f2 := p.Flower2
+	f1 := p.flower1
+	f2 := p.flower2
 
 	f1Pollinated, err := validation.Validate(f1.Alg, f1.Pub, f1.Hash, f2.Sig)
 	if err != nil {
@@ -43,36 +45,39 @@ func (p *Pollination) Pollinate() (bool, error) {
 		return false, err
 	}
 
-	p.Pollinated = f1Pollinated && f2Pollinated
-	return p.Pollinated, nil
+	return f1Pollinated && f2Pollinated, nil
 }
 
 func (p *Pollination) AddFlower(flower *flower) {
-	if p.Flower1 == nil || bytes.Equal(p.Flower1.Pub, flower.Pub) {
-		p.Flower1 = flower
+	if p.flower1 == nil || string(p.flower1.Pub) == string(flower.Pub) {
+		p.flower1 = flower
 		return
 	}
-	if p.Flower2 == nil || bytes.Equal(p.Flower2.Pub, flower.Pub) {
-		p.Flower2 = flower
+	if p.flower2 == nil || string(p.flower2.Pub) == string(flower.Pub) {
+		p.flower2 = flower
 		return
 	}
 }
 
+// nil is possible
 func (p *Pollination) GetFlower(pub []byte) *flower {
-	if p.Flower1 != nil && bytes.Equal(p.Flower1.Pub, pub) {
-		return p.Flower1
+	if p.flower1 != nil && string(p.flower1.Pub) == string(pub) {
+		return p.flower1
 	}
-	if p.Flower2 != nil && bytes.Equal(p.Flower2.Pub, pub) {
-		return p.Flower2
+	if p.flower2 != nil && string(p.flower2.Pub) == string(pub) {
+		return p.flower2
 	}
 	return nil
 }
 
+type pollinationMarshal struct {
+	Flower1, Flower2 *flower
+}
+
 func (p *Pollination) MarshalBinary() ([]byte, error) {
 	return cbor.Marshal(&pollinationMarshal{
-		Flower1:    p.Flower1,
-		Flower2:    p.Flower2,
-		Pollinated: p.Pollinated,
+		Flower1: p.flower1,
+		Flower2: p.flower2,
 	})
 }
 
@@ -81,9 +86,8 @@ func (p *Pollination) UnmarshalBinary(data []byte) error {
 	if err := cbor.Unmarshal(data, pm); err != nil {
 		return err
 	}
-	p.Flower1 = pm.Flower1
-	p.Flower2 = pm.Flower2
-	p.Pollinated = pm.Pollinated
+	p.flower1 = pm.Flower1
+	p.flower2 = pm.Flower2
 	return nil
 }
 

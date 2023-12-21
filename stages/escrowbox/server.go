@@ -1,7 +1,6 @@
 package escrowbox
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -54,7 +53,7 @@ func (s *Server) escrow() http.Handler {
 			respondError(w, http.StatusMethodNotAllowed, nil)
 			return
 		}
-		
+
 		// parsing data
 		data := map[string]interface{}{}
 		_, err := parseJSONRequest(r, w, &data)
@@ -109,14 +108,26 @@ func (s *Server) escrow() http.Handler {
 		// 2 stage: pollination
 		pollination, err := GetPollination(fr.Id, s.stor)
 		if err != nil {
-			respondError(w, http.StatusNotFound, nil)
+			respondError(w, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if pollination == nil {
-			pollination = &Pollination{}
+			pollination = NewPollination()
+			pollination.AddFlower(flower)
+			if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
+				respondError(w, http.StatusInternalServerError, nil)
+				return
+			}
+			respondOk(w, nil)
+			return
 		}
+
 		pollination.AddFlower(flower)
+		if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
+			respondError(w, http.StatusInternalServerError, nil)
+			return
+		}
 
 		pollinated, err := pollination.Pollinate()
 		if err != nil {
@@ -124,23 +135,13 @@ func (s *Server) escrow() http.Handler {
 			return
 		}
 
-		if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
-			respondError(w, http.StatusInternalServerError, nil)
-			return
-		}
-
 		if pollinated {
-			signature := ""
-			if bytes.Equal(pollination.Flower1.Pub, pubB) {
-				signature = base64.StdEncoding.EncodeToString(pollination.Flower2.Sig)
-			} else {
-				signature = base64.StdEncoding.EncodeToString(pollination.Flower1.Sig)
+			if flower := pollination.GetFlower(pubB); flower != nil {
+				respondOk(w, map[string]string{
+					"signature": base64.StdEncoding.EncodeToString(flower.Sig),
+				})
+				return
 			}
-
-			respondOk(w, map[string]string{
-				"signature": signature,
-			})
-			return
 		}
 
 		respondOk(w, nil)
