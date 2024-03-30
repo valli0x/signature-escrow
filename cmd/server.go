@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 
 	"github.com/hashicorp/go-hclog"
@@ -10,7 +11,7 @@ import (
 )
 
 type ServerFlags struct {
-	Port     string
+	Addr     string
 	Password string
 }
 
@@ -20,7 +21,7 @@ var (
 
 func init() {
 	command := StartServer()
-	command.PersistentFlags().StringVar(&serverFlags.Port, "port", ":8282", "servers port")
+	command.PersistentFlags().StringVar(&serverFlags.Addr, "address", "localhost:8282", "server address")
 	command.PersistentFlags().StringVar(&serverFlags.Password, "pass", "", "password for storage")
 
 	RootCmd.AddCommand(command)
@@ -48,10 +49,13 @@ func StartServer() *cobra.Command {
 				return err
 			}
 
-			logger.Info("run server on port " + serverFlags.Port)
-			if err := escrowbox.NewServer(serverFlags.Port, stor).Start(); err != nil {
-				return err
-			}
+			logger.Info("configuration server")
+			server := escrowbox.NewServer(&escrowbox.SrvConfig{
+				Addr: serverFlags.Addr,
+				Stor: stor,
+			})
+
+			server.Run(context.Background())
 			return nil
 		},
 	}

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -25,7 +27,6 @@ import (
 	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/network/redis"
 	"github.com/valli0x/signature-escrow/stages/checker"
-	"github.com/valli0x/signature-escrow/stages/escrowbox"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
 	"github.com/valli0x/signature-escrow/stages/txwithdrawal"
@@ -123,7 +124,7 @@ func Client() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := mpccmp.PrintAddressPubKeyECDSA(my, configETH); err != nil {
+			if err := mpccmp.PrintAddressPubKeyECDSA(configETH); err != nil {
 				return err
 			}
 			pubkeyETH, err := mpccmp.GetPublicKeyByte(configETH)
@@ -162,6 +163,7 @@ func Client() *cobra.Command {
 			fmt.Println("check escrow balance")
 			var btcAPI gobcy.API
 			var client *ethclient.Client
+
 			switch tokenType {
 			case "BTC":
 				gobcyAPI, err := readGobcyAPI()
@@ -339,7 +341,7 @@ func Client() *cobra.Command {
 
 			mysig := []byte{}
 			for {
-				mysig, err = escrowbox.PostEscrow(RuntimeConfig.Escrow, postData)
+				mysig, err = PostEscrow(RuntimeConfig.Escrow, postData)
 				if err != nil {
 					return err
 				}
@@ -520,4 +522,38 @@ func getid(myid, anotherid string) string {
 		}
 	}
 	return ""
+}
+
+func PostEscrow(addr string, postData map[string]string) ([]byte, error) {
+	dataJson, err := json.Marshal(postData)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, addr+"/v1/escrow", bytes.NewReader(dataJson))
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	answer := &answer{}
+	if err := json.NewDecoder(res.Body).Decode(answer); err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	if answer.Signature == "" {
+		return nil, nil
+	}
+	sig, err := base64.StdEncoding.DecodeString(answer.Signature)
+	if err != nil {
+		return nil, err
+	}
+
+	return sig, nil
+}
+
+type answer struct {
+	Signature string
 }

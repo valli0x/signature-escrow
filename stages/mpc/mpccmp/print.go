@@ -10,7 +10,7 @@ import (
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 )
 
-func PrintAddressPubKeyECDSA(name string, c *cmp.Config) error {
+func PrintAddressPubKeyECDSA(c *cmp.Config) error {
 	publicKey, err := c.PublicPoint().MarshalBinary()
 	if err != nil {
 		return err

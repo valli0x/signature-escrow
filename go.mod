@@ -8,9 +8,9 @@ require (
 	github.com/btcsuite/btcd v0.23.4
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/btcsuite/btcd/btcutil v1.1.3
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum/go-ethereum v1.13.3
 	github.com/fxamacker/cbor/v2 v2.3.0
+	github.com/go-chi/chi v1.5.5
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/vault/sdk v0.10.2
@@ -55,7 +55,6 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0 // indirect
-	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.146 // indirect
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.6+incompatible // indirect
 	github.com/apple/foundationdb/bindings/go v0.0.0-20190411004307-cd5c9d91fad2 // indirect
@@ -82,36 +81,10 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.3.0 // indirect
 	github.com/cronokirby/safenum v0.29.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
-	github.com/decred/base58 v1.0.5 // indirect
-	github.com/decred/dcrd v1.8.0 // indirect
-	github.com/decred/dcrd/addrmgr/v2 v2.0.2 // indirect
-	github.com/decred/dcrd/bech32 v1.1.3 // indirect
-	github.com/decred/dcrd/blockchain/stake/v5 v5.0.0 // indirect
-	github.com/decred/dcrd/blockchain/standalone/v2 v2.2.0 // indirect
-	github.com/decred/dcrd/certgen v1.1.2 // indirect
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.4 // indirect
-	github.com/decred/dcrd/chaincfg/v3 v3.2.0 // indirect
-	github.com/decred/dcrd/connmgr/v3 v3.1.1 // indirect
-	github.com/decred/dcrd/container/apbf v1.0.1 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
-	github.com/decred/dcrd/crypto/ripemd160 v1.0.2 // indirect
-	github.com/decred/dcrd/database/v3 v3.0.1 // indirect
-	github.com/decred/dcrd/dcrec v1.0.1 // indirect
-	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0 // indirect
-	github.com/decred/dcrd/dcrjson/v4 v4.0.1 // indirect
-	github.com/decred/dcrd/dcrutil/v4 v4.0.1 // indirect
-	github.com/decred/dcrd/gcs/v4 v4.0.0 // indirect
-	github.com/decred/dcrd/lru v1.1.2 // indirect
-	github.com/decred/dcrd/math/uint256 v1.0.1 // indirect
-	github.com/decred/dcrd/peer/v3 v3.0.2 // indirect
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0 // indirect
-	github.com/decred/dcrd/txscript/v4 v4.1.0 // indirect
-	github.com/decred/dcrd/wire v1.6.0 // indirect
-	github.com/decred/go-socks v1.1.0 // indirect
-	github.com/decred/slog v1.2.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.12.3 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
@@ -206,15 +179,11 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jackc/pgx/v4 v4.18.1 // indirect
-	github.com/jessevdk/go-flags v1.5.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/joyent/triton-go v1.8.5 // indirect
-	github.com/jrick/bitset v1.0.0 // indirect
-	github.com/jrick/logrotate v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.3 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
@@ -256,7 +225,6 @@ require (
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.3 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c // indirect
@@ -299,6 +267,5 @@ require (
 	gopkg.in/ini.v1 v1.66.2 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.2.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )

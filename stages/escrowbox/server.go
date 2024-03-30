@@ -1,155 +1,84 @@
 package escrowbox
 
 import (
-	"encoding/base64"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
-	"github.com/valli0x/signature-escrow/validation"
 )
 
-type Server struct {
-	port string
+const (
+	timeoutSeconds = 10
+	idleTimeout    = 20
+	maxHeaderBytes = 1024 * 1024
+)
+
+type server struct {
+	addr string
+	srv  *http.Server
 	stor logical.Storage
 }
 
-func NewServer(port string, stor logical.Storage) *Server {
-	return &Server{
-		port: port,
-		stor: stor,
-	}
+type SrvConfig struct {
+	Addr string
+	Stor logical.Storage
 }
 
-func (s *Server) Start() error {
-	mux := http.NewServeMux()
-	mux.Handle("/v1/escrow", s.escrow())
+func NewServer(cfg *SrvConfig) *server {
+	httpServer := &http.Server{
+		MaxHeaderBytes: maxHeaderBytes,
+		IdleTimeout:    idleTimeout * time.Second,
+		ReadTimeout:    timeoutSeconds * time.Second,
+		WriteTimeout:   timeoutSeconds * time.Second,
+	}
 
-	ln, err := net.Listen("tcp", s.port)
+	s := &server{
+		srv:  httpServer,
+		addr: cfg.Addr,
+		stor: cfg.Stor,
+	}
+
+	s.srv.Handler = s.routers()
+
+	return s
+}
+
+func (s *server) Run(ctx context.Context) {
+	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		return err
+		log.Printf("can't listen on %s. server quitting: %v", s.addr, err)
+		return
 	}
-	server := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		IdleTimeout:       5 * time.Minute,
+
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		<-ctx.Done()
+
+		if err := s.srv.Shutdown(context.Background()); err != nil {
+			log.Printf("HTTP server Shutdown: %v", err)
+		}
+	}(wg)
+
+	log.Printf("server listening on %s", s.addr)
+	if err := s.srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+		wg.Done()
+		log.Printf("unexpected (http.Server).Serve error: %v", err)
 	}
-	server.Serve(ln)
 
-	return nil
-}
-
-func (s *Server) escrow() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			respondError(w, http.StatusMethodNotAllowed, nil)
-			return
-		}
-
-		// parsing data
-		data := map[string]interface{}{}
-		_, err := parseJSONRequest(r, w, &data)
-		if err == io.EOF {
-			data, err = nil, nil
-			respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
-			return
-		}
-		if err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
-			return
-		}
-		fr := &flowerRequest{}
-		if err := mapstructure.Decode(data, fr); err != nil {
-			respondError(w, http.StatusBadRequest, nil)
-			return
-		}
-
-		// 1 stage: create flower
-		if fr.Alg == "" || fr.Id == "" || fr.Pub == "" || fr.Hash == "" {
-			respondError(w, http.StatusBadRequest, nil)
-			return
-		}
-
-		flower := &flower{}
-		flower.Alg = validation.SignaturesType(fr.Alg)
-		flower.ID = fr.Id
-
-		pubB, err := base64.StdEncoding.DecodeString(fr.Pub)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, nil)
-			return
-		}
-		flower.Pub = pubB
-
-		hashB, err := base64.StdEncoding.DecodeString(fr.Hash)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, nil)
-			return
-		}
-		flower.Hash = hashB
-
-		if fr.Sig != "" {
-			sigB, err := base64.StdEncoding.DecodeString(fr.Sig)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, nil)
-				return
-			}
-			flower.Sig = sigB
-		}
-
-		// 2 stage: pollination
-		pollination, err := GetPollination(fr.Id, s.stor)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, nil)
-			return
-		}
-
-		if pollination == nil {
-			pollination = NewPollination()
-			pollination.AddFlower(flower)
-			if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
-				respondError(w, http.StatusInternalServerError, nil)
-				return
-			}
-			respondOk(w, nil)
-			return
-		}
-
-		pollination.AddFlower(flower)
-		if err := PutPollination(fr.Id, pollination, s.stor); err != nil {
-			respondError(w, http.StatusInternalServerError, nil)
-			return
-		}
-
-		pollinated, err := pollination.Pollinate()
-		if err != nil {
-			respondError(w, http.StatusBadRequest, nil)
-			return
-		}
-
-		if pollinated {
-			if flower := pollination.GetFlower(pubB); flower != nil {
-				respondOk(w, map[string]string{
-					"signature": base64.StdEncoding.EncodeToString(flower.Sig),
-				})
-				return
-			}
-		}
-
-		respondOk(w, nil)
-	})
-}
-
-type flowerRequest struct {
-	Alg, Id, Pub, Hash, Sig string
+	wg.Wait()
+	log.Printf("server off")
 }
 
 func respondOk(w http.ResponseWriter, body interface{}) {
@@ -159,8 +88,7 @@ func respondOk(w http.ResponseWriter, body interface{}) {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		w.WriteHeader(http.StatusOK)
-		enc := json.NewEncoder(w)
-		enc.Encode(body)
+		json.NewEncoder(w).Encode(body)
 	}
 }
 
@@ -176,8 +104,7 @@ func respondError(w http.ResponseWriter, status int, err error) {
 		resp.Errors = append(resp.Errors, err.Error())
 	}
 
-	enc := json.NewEncoder(w)
-	enc.Encode(resp)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func parseJSONRequest(r *http.Request, w http.ResponseWriter, out interface{}) (io.ReadCloser, error) {
@@ -203,6 +130,7 @@ func parseJSONRequest(r *http.Request, w http.ResponseWriter, out interface{}) (
 			reader = http.MaxBytesReader(inw, r.Body, max)
 		}
 	}
+
 	var origBody io.ReadWriter
 	err := jsonutil.DecodeJSONFromReader(reader, out)
 	if err != nil && err != io.EOF {

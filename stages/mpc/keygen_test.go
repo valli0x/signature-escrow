@@ -57,12 +57,12 @@ func TestKeygenCMP(t *testing.T) {
 	wg.Wait()
 
 	fmt.Println("config a")
-	if err := mpccmp.PrintAddressPubKeyECDSA("a", configA); err != nil {
+	if err := mpccmp.PrintAddressPubKeyECDSA(configA); err != nil {
 		t.Fatal("print address pub key a:", err)
 	}
 
 	fmt.Println("config b")
-	if err := mpccmp.PrintAddressPubKeyECDSA("b", configB); err != nil {
+	if err := mpccmp.PrintAddressPubKeyECDSA(configB); err != nil {
 		t.Fatal("print address pub key b:", err)
 	}
 }

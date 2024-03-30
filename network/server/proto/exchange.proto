@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package exchange;
+
+option go_package = "github.com/valli0x/signature-escrow/network/server/proto";
+
+service Exchange {
+    rpc Send(SendReq) returns (SendRes);
+    rpc Next(NextReq) returns (stream NextRes);
+}
+
+message SendReq {
+    string name = 1;
+    string msgbody = 2;
+}
+
+message SendRes {}
+
+message NextReq {
+    string name = 1;
+}
+
+message NextRes {
+    string msgbody = 1;
+}
