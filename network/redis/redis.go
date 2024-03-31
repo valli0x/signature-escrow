@@ -90,3 +90,4 @@ func (r *RedisNet) Done() chan struct{} {
 	close(r.done)
 	return r.done
 }
+
