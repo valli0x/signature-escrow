@@ -7,4 +7,4 @@ storage_config:
     path: "./data"
 
 # escrow address
-escrow: http://localhost:8282
+escrow: localhost:8282

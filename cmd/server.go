@@ -12,7 +12,6 @@ import (
 
 type ServerFlags struct {
 	Addr     string
-	Password string
 }
 
 var (
@@ -22,7 +21,6 @@ var (
 func init() {
 	command := StartServer()
 	command.PersistentFlags().StringVar(&serverFlags.Addr, "address", "localhost:8282", "server address")
-	command.PersistentFlags().StringVar(&serverFlags.Password, "pass", "", "password for storage")
 
 	RootCmd.AddCommand(command)
 }
@@ -43,7 +41,7 @@ func StartServer() *cobra.Command {
 			logger.Info("create storage...")
 			stor, err := storage.CreateBackend(
 				"server",
-				RuntimeConfig.StorageType, serverFlags.Password, RuntimeConfig.StorageConfig,
+				RuntimeConfig.StorageType, storagePass, RuntimeConfig.StorageConfig,
 				logger.Named("storage"))
 			if err != nil {
 				return err

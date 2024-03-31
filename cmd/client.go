@@ -92,15 +92,6 @@ func Client() *cobra.Command {
 				return err
 			}
 
-			// logger.Trace("create storage...")
-			// stor, err := storage.CreateBackend(
-			// 	"server",
-			// 	RuntimeConfig.StorageType, serverFlags.Password, RuntimeConfig.StorageConfig,
-			// 	logger.Named("storage"))
-			// if err != nil {
-			// 	return err
-			// }
-
 			if err := ping(net); err != nil {
 				return err
 			}
@@ -417,22 +408,6 @@ func ping(net network.Network) error {
 			time.Sleep(time.Second * 5)
 		}
 	}
-}
-
-func readID() (string, error) {
-ID:
-
-	fmt.Print("another ID: ")
-	input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	input = strings.TrimRight(input, "\n")
-	if len(input) < 32 {
-		fmt.Println("min lenth ID is 32")
-		goto ID
-	}
-	return input, nil
 }
 
 func space() {

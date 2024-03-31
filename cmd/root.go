@@ -10,6 +10,7 @@ import (
 
 var (
 	homeDir       string
+	storagePass   string
 	RuntimeConfig *config.RuntimeConfig
 )
 
@@ -21,6 +22,7 @@ var RootCmd = &cobra.Command{
 func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&homeDir, "config", "", "Directory for config ")
+	RootCmd.PersistentFlags().StringVar(&storagePass, "pass", "", "password for storage")
 }
 
 func initConfig() {
