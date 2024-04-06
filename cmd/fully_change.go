@@ -87,7 +87,7 @@ func Client() *cobra.Command {
 			}
 
 			logger.Trace("network setup")
-			net, err := redis.NewRedisNet(RuntimeConfig.Network, my, another, logger.Named("network"))
+			net, err := redis.NewRedisNet(env.Network, my, another, logger.Named("network"))
 			if err != nil {
 				return err
 			}
@@ -332,7 +332,7 @@ func Client() *cobra.Command {
 
 			mysig := []byte{}
 			for {
-				mysig, err = PostEscrow(RuntimeConfig.Escrow, postData)
+				mysig, err = PostEscrow(env.Escrow, postData)
 				if err != nil {
 					return err
 				}

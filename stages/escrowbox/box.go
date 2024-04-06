@@ -9,7 +9,7 @@ import (
 	"github.com/valli0x/signature-escrow/validation"
 )
 
-type Pollination struct {
+type pollination struct {
 	flower1, flower2 *flower
 	m                sync.Mutex
 }
@@ -20,11 +20,11 @@ type flower struct {
 	Pub, Hash, Sig []byte
 }
 
-func NewPollination() *Pollination {
-	return &Pollination{}
+func NewPollination() *pollination {
+	return &pollination{}
 }
 
-func (p *Pollination) Pollinate() (bool, error) {
+func (p *pollination) Pollinate() (bool, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
@@ -48,19 +48,19 @@ func (p *Pollination) Pollinate() (bool, error) {
 	return f1Pollinated && f2Pollinated, nil
 }
 
-func (p *Pollination) AddFlower(flower *flower) {
-	if p.flower1 == nil || string(p.flower1.Pub) == string(flower.Pub) {
+func (p *pollination) AddFlower(flower *flower) {
+	switch {
+	case p.flower1 == nil || string(p.flower1.Pub) == string(flower.Pub):
 		p.flower1 = flower
 		return
-	}
-	if p.flower2 == nil || string(p.flower2.Pub) == string(flower.Pub) {
+	case p.flower2 == nil || string(p.flower2.Pub) == string(flower.Pub):
 		p.flower2 = flower
 		return
 	}
 }
 
-// nil is possible
-func (p *Pollination) GetFlower(pub []byte) *flower {
+// ! nil is possible
+func (p *pollination) GetFlower(pub []byte) *flower {
 	if p.flower1 != nil && string(p.flower1.Pub) == string(pub) {
 		return p.flower1
 	}
@@ -74,14 +74,14 @@ type pollinationMarshal struct {
 	Flower1, Flower2 *flower
 }
 
-func (p *Pollination) MarshalBinary() ([]byte, error) {
+func (p *pollination) MarshalBinary() ([]byte, error) {
 	return cbor.Marshal(&pollinationMarshal{
 		Flower1: p.flower1,
 		Flower2: p.flower2,
 	})
 }
 
-func (p *Pollination) UnmarshalBinary(data []byte) error {
+func (p *pollination) UnmarshalBinary(data []byte) error {
 	pm := &pollinationMarshal{}
 	if err := cbor.Unmarshal(data, pm); err != nil {
 		return err
@@ -91,7 +91,7 @@ func (p *Pollination) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func GetPollination(id string, storage logical.Storage) (*Pollination, error) {
+func GetPollination(id string, storage logical.Storage) (*pollination, error) {
 	entry, err := storage.Get(context.Background(), id)
 	if err != nil {
 		return nil, err
@@ -99,14 +99,14 @@ func GetPollination(id string, storage logical.Storage) (*Pollination, error) {
 	if entry == nil {
 		return nil, nil
 	}
-	p := &Pollination{}
+	p := &pollination{}
 	if err := p.UnmarshalBinary(entry.Value); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func PutPollination(id string, p *Pollination, storage logical.Storage) error {
+func PutPollination(id string, p *pollination, storage logical.Storage) error {
 	data, err := p.MarshalBinary()
 	if err != nil {
 		return err

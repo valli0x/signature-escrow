@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	homeDir       string
-	storagePass   string
-	RuntimeConfig *config.RuntimeConfig
+	homeDir     string
+	storagePass string
+	env         *config.Env
 )
 
 var RootCmd = &cobra.Command{
@@ -26,12 +26,9 @@ func init() {
 }
 
 func initConfig() {
-	RuntimeConfig = config.NewConfig()
-	handleInitError(RuntimeConfig.Load(homeDir))
-}
+	env = config.NewConfig()
 
-func handleInitError(err error) {
-	if err != nil {
+	if err := env.Load(homeDir); err != nil {
 		fmt.Println("init error:", err)
 		os.Exit(1)
 	}

@@ -76,13 +76,13 @@ func Keygen() *cobra.Command {
 
 			// network setup
 			logger.Trace("network setup")
-			net, err := redis.NewRedisNet(RuntimeConfig.Network, myid, another, logger.Named("network"))
+			net, err := redis.NewRedisNet(env.Network, myid, another, logger.Named("network"))
 			if err != nil {
 				return err
 			}
 
 			logger.Trace("create storage...")
-			stortype, pass, storconf := RuntimeConfig.StorageType, storagePass, RuntimeConfig.StorageConfig
+			stortype, pass, storconf := env.StorageType, storagePass, env.StorageConfig
 
 			stor, err := storage.CreateBackend("keygen", stortype, pass, storconf, logger.Named("storage"))
 			if err != nil {

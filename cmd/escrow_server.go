@@ -11,7 +11,7 @@ import (
 )
 
 type ServerFlags struct {
-	Addr     string
+	Addr string
 }
 
 var (
@@ -41,7 +41,7 @@ func StartServer() *cobra.Command {
 			logger.Info("create storage...")
 			stor, err := storage.CreateBackend(
 				"server",
-				RuntimeConfig.StorageType, storagePass, RuntimeConfig.StorageConfig,
+				env.StorageType, storagePass, env.StorageConfig,
 				logger.Named("storage"))
 			if err != nil {
 				return err
