@@ -1,10 +1,10 @@
-# network configuration
+# network
 network: localhost:6379
 
-# storage configuration
+# storage
 storage_type: file
 storage_config:
     path: "./data"
 
-# escrow address
+# escrow
 escrow: localhost:8282
