@@ -48,7 +48,7 @@ func Keygen() *cobra.Command {
 			*/
 
 			if keygenFlags.KeyType != "ecdsa" && keygenFlags.KeyType != "frost" {
-				return errors.New("unknown alg")
+				return errors.New("unknown alg(ecdsa or frost alg)")
 			}
 
 			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
@@ -117,6 +117,10 @@ func Keygen() *cobra.Command {
 				if err := mpccmp.PrintAddressPubKeyECDSA(configETH); err != nil {
 					return err
 				}
+				address, err := mpccmp.GetAddress(configETH)
+				if err != nil {
+					return err
+				}
 
 				fmt.Println("Saving private config")
 				kb, err := configETH.MarshalBinary()
@@ -130,7 +134,7 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   myid + "/conf-ecdsa",
+					Key:   address + "/conf-ecdsa",
 					Value: kb,
 				}); err != nil {
 					return err
@@ -154,6 +158,10 @@ func Keygen() *cobra.Command {
 				if err := mpcfrost.PrintAddressPubKeyTaproot(myid, configBTC); err != nil {
 					return err
 				}
+				address, err := mpcfrost.GetAddress(configBTC)
+				if err != nil {
+					return err
+				}
 
 				fmt.Println("Keygen private config")
 				configb, err := cbor.Marshal(configBTC)
@@ -162,7 +170,7 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   myid + "/conf-frost",
+					Key:   address.String() + "/conf-frost",
 					Value: configb,
 				}); err != nil {
 					return err
