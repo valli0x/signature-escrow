@@ -36,8 +36,10 @@
 	
    Alice(send own tx hash and Bob's signature) -> agent
    Bob(send own tx hash and Alice's signature) -> agent
-	
+
+```
 		    Escrow pub key 1
 Alice signature(Bob tokens) <-> Bob hash(Bob tokens)
 		    Escrow pub key 2
 Alice hash(Alice tokens)    <-> Bob signature(Alice tokens)
+```
