@@ -31,7 +31,7 @@ var (
 
 func init() {
 	command := Keygen()
-	command.PersistentFlags().StringVar(&keygenFlags.KeyType, "alg", "", "shared keys type")
+	command.PersistentFlags().StringVar(&keygenFlags.KeyType, "alg", "", "shared keys type(ecdsa or frost)")
 	RootCmd.AddCommand(command)
 }
 
@@ -141,7 +141,7 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   myid + "/presig-ecdsa",
+					Key:   address + "/presig-ecdsa",
 					Value: preSignB,
 				}); err != nil {
 					return err
