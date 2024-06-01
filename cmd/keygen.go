@@ -22,6 +22,7 @@ import (
 )
 
 type KeygenFlags struct {
+	Name string
 	KeyType string
 }
 
@@ -32,6 +33,7 @@ var (
 func init() {
 	command := Keygen()
 	command.PersistentFlags().StringVar(&keygenFlags.KeyType, "alg", "", "shared keys type(ecdsa or frost)")
+	command.PersistentFlags().StringVar(&keygenFlags.Name, "name", "", "name for key pair")
 	RootCmd.AddCommand(command)
 }
 
@@ -134,14 +136,14 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   address + "/conf-ecdsa",
+					Key:   keygenFlags.Name + "/" + address + "/conf-ecdsa",
 					Value: kb,
 				}); err != nil {
 					return err
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   address + "/presig-ecdsa",
+					Key:   keygenFlags.Name + "/" + address + "/presig-ecdsa",
 					Value: preSignB,
 				}); err != nil {
 					return err
@@ -170,7 +172,7 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   address.String() + "/conf-frost",
+					Key:   keygenFlags.Name + "/" + address.String() + "/conf-frost",
 					Value: configb,
 				}); err != nil {
 					return err
