@@ -7,8 +7,10 @@ The Signature-escrow repository allows you to exchange tokens using multi-signat
   The command to start the redis container - ``` docker run --name my-redis -p 6379:6379 -d redis ```.
   The config/config.yml file contains an example config. The Network field specifies the address and port of the message broker
 
-  Alice's command - ```go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name alice```
-  Bob's - ``` go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name bob ```
+  Alice's command:
+  ```go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name alice```
+  Bob's: 
+  ``` go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name bob ```
  
   * keygen - command to create shared keys command to create shared keys
   * config - flag for specifying the location of the config
