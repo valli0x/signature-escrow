@@ -97,16 +97,6 @@ func readETHAPI() (string, error) {
 	return input, nil
 }
 
-func readCosign() (bool, error) {
-	fmt.Print("cosign(yes/no): ")
-	input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return false, err
-	}
-	input = strings.TrimRight(input, "\n")
-	return input == "yes", nil
-}
-
 func getid(myid, anotherid string) string {
 	for i := 0; i < len(myid); i++ {
 		if myid[i] == anotherid[i] {
