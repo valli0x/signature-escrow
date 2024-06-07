@@ -28,19 +28,20 @@ import (
 )
 
 var (
+	homeDir, storPass string
+	env               *config.Env
+
 	rootCmd *cobra.Command
 )
 
 func init() {
-	var (
-		homeDir, storPass string
-		env               *config.Env
-	)
-
 	rootCmd = &cobra.Command{
 		Use:   "escrow",
 		Short: "client and server signature-escrow",
 	}
+
+	rootCmd.PersistentFlags().StringVar(&homeDir, "config", "", "Directory for config ")
+	rootCmd.PersistentFlags().StringVar(&storPass, "pass", "", "password for storage")
 
 	cobra.OnInitialize(func() {
 		env = config.NewConfig()
@@ -51,16 +52,13 @@ func init() {
 		}
 	})
 
-	rootCmd.PersistentFlags().StringVar(&homeDir, "config", "", "Directory for config ")
-	rootCmd.PersistentFlags().StringVar(&storPass, "pass", "", "password for storage")
-
 	rootCmd.AddCommand(
 		FullyExchange(env),
 		Keygen(env, storPass),
 		EthTxHash(),
-		StartEscrowServer(env, storPass),
 		SendWithdrawalTx(env, storPass),
 		AcceptWithdrawalTx(env, storPass),
+		StartEscrowServer(env, storPass),
 	)
 }
 

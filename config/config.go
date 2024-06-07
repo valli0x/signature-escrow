@@ -26,7 +26,7 @@ func (e *Env) Load(homeDir string) error {
 		if err != nil {
 			return err
 		}
-		home = filepath.Join(userHome, "config/config.yml")
+		home = filepath.Join(userHome, "config.yml")
 	} else {
 		home = homeDir
 	}
