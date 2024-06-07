@@ -1,13 +1,18 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"math/big"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -16,28 +21,17 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/valli0x/signature-escrow/network/redis"
+	"github.com/valli0x/signature-escrow/stages/escrowbox"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
 	"github.com/valli0x/signature-escrow/storage"
 )
 
-type KeygenFlags struct {
-	Name string
-	KeyType string
-}
-
-var (
-	keygenFlags = &KeygenFlags{}
-)
-
-func init() {
-	command := Keygen()
-	command.PersistentFlags().StringVar(&keygenFlags.KeyType, "alg", "", "shared keys type(ecdsa or frost)")
-	command.PersistentFlags().StringVar(&keygenFlags.Name, "name", "", "name for key pair")
-	RootCmd.AddCommand(command)
-}
-
+// Command for creating shared Bitcoin or Ethereum keys
 func Keygen() *cobra.Command {
+	var (
+		name, keyType string
+	)
 
 	cmd := &cobra.Command{
 		Use:          "keygen",
@@ -49,7 +43,7 @@ func Keygen() *cobra.Command {
 				setup
 			*/
 
-			if keygenFlags.KeyType != "ecdsa" && keygenFlags.KeyType != "frost" {
+			if keyType != "ecdsa" && keyType != "frost" {
 				return errors.New("unknown alg(ecdsa or frost alg)")
 			}
 
@@ -101,7 +95,7 @@ func Keygen() *cobra.Command {
 
 			logger.Trace("keygen ecdsa or schnorr")
 
-			switch keygenFlags.KeyType {
+			switch keyType {
 			case "ecdsa":
 				space()
 				pl := pool.NewPool(0)
@@ -136,14 +130,14 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   keygenFlags.Name + "/" + address + "/conf-ecdsa",
+					Key:   name + "/" + address + "/conf-ecdsa",
 					Value: kb,
 				}); err != nil {
 					return err
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   keygenFlags.Name + "/" + address + "/presig-ecdsa",
+					Key:   name + "/" + address + "/presig-ecdsa",
 					Value: preSignB,
 				}); err != nil {
 					return err
@@ -172,7 +166,7 @@ func Keygen() *cobra.Command {
 				}
 
 				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   keygenFlags.Name + "/" + address.String() + "/conf-frost",
+					Key:   name + "/" + address.String() + "/conf-frost",
 					Value: configb,
 				}); err != nil {
 					return err
@@ -186,20 +180,117 @@ func Keygen() *cobra.Command {
 		},
 	}
 
+	cmd.PersistentFlags().StringVar(&keyType, "alg", "", "shared keys type(ecdsa or frost)")
+	cmd.PersistentFlags().StringVar(&name, "name", "", "name for key pair")
+
 	return cmd
 }
 
-func readID() (string, error) {
-ID:
-	fmt.Print("another ID: ")
-	input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
+// Command for getting hash from withdrawal ethereum transaction
+func EthTxHash() *cobra.Command {
+	var (
+		node string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "ethereum-transaction",
+		Short: "Create and print the hash of an Ethereum transaction",
+		Long: `This command connects to an Ethereum node via RPC,
+	fetches the current nonce for a given account,
+	creates a new transaction with specified fields,
+	and then prints the hash of this transaction.
+	It uses go-ethereum library for Ethereum interaction.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 6 {
+				fmt.Println("Usage: ethereum-transaction <AccountAddress> <GasPrice> <GasLimit> <ToAddress> <Value>")
+				return
+			}
+
+			from := common.HexToAddress(args[0])
+			gasPrice, _ := strconv.ParseUint(args[2], 10, 32)
+			gasLimit, _ := strconv.ParseUint(args[3], 10, 32)
+			value, _ := strconv.ParseUint(args[5], 10, 64)
+
+			// Convert uint64 values to *big.Int
+			gasPriceBigInt := big.NewInt(int64(gasPrice))
+			valueBigInt := big.NewInt(int64(value))
+
+			// Connect to Ethereum node
+			client, err := rpc.Dial(node)
+			if err != nil {
+				log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+			}
+
+			// Get current nonce for the account
+			var nonceResult string
+			err = client.Call(&nonceResult, "eth_getTransactionCount", from.Hex(), false)
+			if err != nil {
+				log.Fatalf("Failed to get nonce: %v", err)
+			}
+
+			currentNonce, _ := strconv.ParseUint(nonceResult, 10, 64)
+			newNonce := currentNonce + 1
+
+			// Create a new transaction
+			tx := types.NewTransaction(
+				newNonce,
+				common.HexToAddress(args[4]),
+				valueBigInt,
+				gasLimit,
+				gasPriceBigInt,
+				nil)
+
+			// Calculate the transaction hash
+			txHash := tx.Hash()
+
+			fmt.Printf("The hash of the transaction is: %s\n", txHash.Hex())
+		},
 	}
-	input = strings.TrimRight(input, "\n")
-	if len(input) < 32 {
-		fmt.Println("min lenth ID is 32")
-		goto ID
+
+	cmd.PersistentFlags().StringVar(&node, "node", "", "ethereum node address")
+
+	return cmd
+}
+
+// Command for starting escrow server. 
+// Escrow server checks signature from participant
+func StartServer() *cobra.Command {
+	var (
+		address string
+	)
+	cmd := &cobra.Command{
+		Use:          "server",
+		Short:        "Escrow agent",
+		Args:         cobra.ExactArgs(0),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
+				Name:   "server command",
+				Output: os.Stdout,
+				Level:  hclog.DefaultLevel,
+			})
+
+			logger.Info("create storage...")
+			stor, err := storage.CreateBackend(
+				"server",
+				env.StorageType, storagePass, env.StorageConfig,
+				logger.Named("storage"))
+			if err != nil {
+				return err
+			}
+
+			logger.Info("configuration server")
+			server := escrowbox.NewServer(&escrowbox.SrvConfig{
+				Addr: address,
+				Stor: stor,
+			})
+
+			server.Run(context.Background())
+			return nil
+		},
 	}
-	return input, nil
+
+	cmd.PersistentFlags().StringVar(&address, "address", "localhost:8282", "server address")
+
+	return cmd
 }

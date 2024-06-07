@@ -20,16 +20,17 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(func() {
+		env = config.NewConfig()
+
+		if err := env.Load(homeDir); err != nil {
+			fmt.Println("init error:", err)
+			os.Exit(1)
+		}
+	})
+
 	RootCmd.PersistentFlags().StringVar(&homeDir, "config", "", "Directory for config ")
 	RootCmd.PersistentFlags().StringVar(&storagePass, "pass", "", "password for storage")
-}
 
-func initConfig() {
-	env = config.NewConfig()
-
-	if err := env.Load(homeDir); err != nil {
-		fmt.Println("init error:", err)
-		os.Exit(1)
-	}
+	RootCmd.AddCommand(Keygen(), EthTxHash(), StartServer())
 }
