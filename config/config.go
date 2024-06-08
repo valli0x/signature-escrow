@@ -9,10 +9,10 @@ import (
 )
 
 type Env struct {
-	Network       string            `yaml:"network"`
+	Communication string            `yaml:"communication"`
 	StorageType   string            `yaml:"storage_type"`
 	StorageConfig map[string]string `yaml:"storage_config"`
-	Escrow        string            `yaml:"escrow"`
+	EscrowServer  string            `yaml:"escrow_server"`
 }
 
 func NewConfig() *Env {

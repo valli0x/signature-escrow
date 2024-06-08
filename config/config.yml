@@ -1,10 +1,7 @@
-# network
-network: localhost:6379
+communication: localhost:6379
 
-# storage
+escrow_server: localhost:8282
+
 storage_type: file
 storage_config:
     path: "./data"
-
-# escrow
-escrow: localhost:8282

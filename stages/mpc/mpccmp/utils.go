@@ -7,8 +7,38 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/taurusgroup/multi-party-sig/pkg/ecdsa"
 	"github.com/taurusgroup/multi-party-sig/pkg/math/curve"
+	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 )
+
+func EmptyConfig() *cmp.Config {
+	return cmp.EmptyConfig(curve.Secp256k1{})
+}
+
+func EmptyPreSign() *ecdsa.PreSignature {
+	return ecdsa.EmptyPreSignature(curve.Secp256k1{})
+}
+
+func MsgToHex(msg *protocol.Message) (string, error) {
+	msgB, err := msg.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(msgB), nil
+}
+
+func HexToMsg(body string) (*protocol.Message, error) {
+	b, err := hex.DecodeString(body)
+	if err != nil {
+		return nil, err
+	}
+	msg := &protocol.Message{}
+
+	if err := msg.UnmarshalBinary(b); err != nil {
+		return nil, err
+	}
+	return msg, err
+}
 
 func PrintAddressPubKeyECDSA(c *cmp.Config) error {
 	publicKey, err := c.PublicPoint().MarshalBinary()
