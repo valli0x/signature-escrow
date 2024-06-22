@@ -11,13 +11,7 @@ The signature-escrow repository allows you to exchange tokens using multi-signat
 
   ---
 
-  * Alice's command:
-  ```go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name alice```
-  Bob's: 
-  ``` go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name bob ```
+  Alice's command: ```go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name alice```
+  Bob's: ``` go run main.go keygen --config config/config.yml --pass hello --alg ecdsa --name bob ```
  
-  * **keygen** - command to create shared keys command to create shared keys
-  * **config** - flag for specifying the location of the config
-  * **pass** - the password that will encrypt the private parts for signing(AES)
-  * **alg** - signature algorithm, ECDSA or FROST(improved Schnorr)
-  * **name** - specify the directory for the key data, it is possible to store several shared keys in the same directory
+  **keygen** - command to create shared keys command to create shared keys, **config** - flag for specifying the location of the config, **pass** - the password that will encrypt the private parts for signing(AES), **alg** - signature algorithm, ECDSA or FROST(improved Schnorr), **name** - specify the directory for the key data, it is possible to store several shared keys in the same directory

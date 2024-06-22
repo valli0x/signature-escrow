@@ -41,7 +41,7 @@ func init() {
 		// Forming a common key pair
 		Keygen(),
 
-		// stage 2
+		// stage 2 checking escrow balance
 
 		// stage 3
 		// getting the hash of the eth transaction
@@ -53,7 +53,7 @@ func init() {
 		AcceptWithdrawalTx(),
 
 		// stage 4
-		// launching a signature exchange server
+		// starting a signature exchange server
 		StartEscrowServer(),
 		// exchange of signatures via an escrow server
 		ExchangeSignature(),
