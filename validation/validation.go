@@ -11,16 +11,16 @@ import (
 type SignaturesType string
 
 const (
-	ECDSAType   SignaturesType = "ecdsa"
-	SchnorrType SignaturesType = "schnorr"
+	ECDSA SignaturesType = "ecdsa"
+	Frost SignaturesType = "schnorr"
 )
 
-func Alg(net string) SignaturesType {
-	switch net {
-	case "BTC":
-		return SchnorrType
-	case "ETH":
-		return ECDSAType
+func Alg(alg string) SignaturesType {
+	switch alg {
+	case "frost":
+		return Frost
+	case "ecdsa":
+		return ECDSA
 	default:
 		return ""
 	}
@@ -28,11 +28,11 @@ func Alg(net string) SignaturesType {
 
 func Validate(alg SignaturesType, p, h, s []byte) (bool, error) {
 	switch alg {
-	case ECDSAType:
+	case ECDSA:
 		if len(s) < 64 {
 			return false, errors.New("signature size is less than 64")
 		}
-		
+
 		sig := ecdsa.EmptySignature(curve.Secp256k1{})
 		if err := sig.R.UnmarshalBinary(s[:33]); err != nil {
 			return false, err
@@ -47,7 +47,7 @@ func Validate(alg SignaturesType, p, h, s []byte) (bool, error) {
 		}
 
 		return sig.Verify(pub, h), nil
-	case SchnorrType:
+	case Frost:
 		var pub taproot.PublicKey = p
 		return pub.Verify(s, h), nil
 	default:

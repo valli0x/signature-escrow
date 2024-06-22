@@ -10,8 +10,8 @@ import (
 
 var (
 	homeDir, storPass string
-	env               *config.Env
 	rootCmd           *cobra.Command
+	env               *config.Env
 )
 
 func init() {
@@ -36,9 +36,14 @@ func init() {
 	rootCmd.AddCommand(
 		// Example of creating shared escrow accounts and exchanging signatures
 		FullyExchange(),
+
+		// stage 1
 		// Forming a common key pair
 		Keygen(),
 
+		// stage 2
+
+		// stage 3
 		// getting the hash of the eth transaction
 		EthTxHash(),
 		// sending the other party an incomplete hash signature on the withdrawal of their tokens from the escrow account
@@ -47,13 +52,14 @@ func init() {
 		// and obtaining a full signature
 		AcceptWithdrawalTx(),
 
+		// stage 4
 		// launching a signature exchange server
 		StartEscrowServer(),
 		// exchange of signatures via an escrow server
 		ExchangeSignature(),
 
 		// sending an eth transaction to the network
-		WithdrawalTokens(),
+		WithdrawalTokensETH(),
 	)
 }
 

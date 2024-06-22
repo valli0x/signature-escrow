@@ -162,7 +162,7 @@ func TestSignCMP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	valid, err := validation.Validate(validation.Alg("ETH"), p, msg, sigBbyte)
+	valid, err := validation.Validate(validation.Alg("ecdsa"), p, msg, sigBbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestSignCMP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	valid, err = validation.Validate(validation.Alg("ETH"), p, msg, sigAbyte)
+	valid, err = validation.Validate(validation.Alg("ecdsa"), p, msg, sigAbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestSignFROST(t *testing.T) {
 
 	fmt.Println("check signatures")
 
-	valid, err := validation.Validate(validation.Alg("BTC"), configAfrost.PublicKey, msg, sigB)
+	valid, err := validation.Validate(validation.Alg("frost"), configAfrost.PublicKey, msg, sigB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestSignFROST(t *testing.T) {
 		t.Fatal("public key a is not valid with signature b")
 	}
 
-	valid, err = validation.Validate(validation.Alg("BTC"), configBfrost.PublicKey, msg, sigA)
+	valid, err = validation.Validate(validation.Alg("frost"), configBfrost.PublicKey, msg, sigA)
 	if err != nil {
 		t.Fatal(err)
 	}

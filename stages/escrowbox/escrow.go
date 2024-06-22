@@ -2,6 +2,7 @@ package escrowbox
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,18 +42,18 @@ func (s *server) escrow() http.HandlerFunc {
 			1 stage: create flower
 		*/
 
-		if validation.Alg(fr.Alg) == "" || fr.Id == "" || fr.Pub == "" || fr.Hash == "" {
+		if fr.Alg == "" || fr.Id == "" || fr.Pub == "" || fr.Hash == "" {
 			respondError(w, http.StatusBadRequest, nil)
 			return
 		}
 
-		pubB, err := base64.StdEncoding.DecodeString(fr.Pub)
+		pubB, err := hex.DecodeString(fr.Pub)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, nil)
 			return
 		}
 
-		hashB, err := base64.StdEncoding.DecodeString(fr.Hash)
+		hashB, err := hex.DecodeString(fr.Hash)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, nil)
 			return
@@ -60,7 +61,7 @@ func (s *server) escrow() http.HandlerFunc {
 
 		var sigB []byte
 		if fr.Sig != "" {
-			sigB, err = base64.StdEncoding.DecodeString(fr.Sig)
+			sigB, err = hex.DecodeString(fr.Sig)
 			if err != nil {
 				respondError(w, http.StatusBadRequest, nil)
 				return
@@ -121,4 +122,3 @@ func (s *server) escrow() http.HandlerFunc {
 		respondOk(w, nil)
 	})
 }
-

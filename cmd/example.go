@@ -23,7 +23,6 @@ import (
 	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
 	"github.com/valli0x/signature-escrow/stages/txwithdrawal"
-	"github.com/valli0x/signature-escrow/validation"
 )
 
 // example exchange
@@ -305,15 +304,18 @@ func FullyExchange() *cobra.Command {
 			// 4.2 stage: sending another complete and getting own signature
 
 			// post request to escrow agent
-			var pubkey string
+			var pubkey, alg string
 			switch tokenType {
 			case "BTC":
+				alg = "frost"
 				pubkey = base64.StdEncoding.EncodeToString(pubkeyBTC)
 			case "ETH":
+				alg = "ecdsa"
 				pubkey = base64.StdEncoding.EncodeToString(pubkeyETH)
 			}
+
 			postData := map[string]string{
-				"alg":  string(validation.Alg(tokenType)),
+				"alg":  alg,
 				"id":   idExchange,
 				"pub":  pubkey,
 				"hash": mywish.Hash,
