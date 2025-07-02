@@ -34,9 +34,6 @@ func init() {
 
 	// add commands
 	rootCmd.AddCommand(
-		// Example of creating shared escrow accounts and exchanging signatures
-		FullyExchange(),
-
 		// stage 1
 		// Forming a common key pair
 		Keygen(),
