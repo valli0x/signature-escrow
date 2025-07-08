@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/valli0x/signature-escrow/storage"
 )
 
 const (
@@ -25,12 +26,12 @@ const (
 type server struct {
 	addr string
 	srv  *http.Server
-	stor logical.Storage
+	stor storage.Storage
 }
 
 type SrvConfig struct {
 	Addr string
-	Stor logical.Storage
+	Stor storage.Storage
 }
 
 func NewServer(cfg *SrvConfig) *server {

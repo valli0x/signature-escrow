@@ -10,7 +10,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/spf13/cobra"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
@@ -71,9 +70,13 @@ func Keygen() *cobra.Command {
 			}
 
 			logger.Trace("create storage...")
-			stortype, pass, storconf := env.StorageType, storPass, env.StorageConfig
+			pass, storconf := storPass, env.StorageConfig
 
-			stor, err := storage.CreateBackend("keygen", stortype, pass, storconf, logger.Named("storage"))
+			fileStor, err := storage.NewFileStorage(storconf, logger.Named("storage"))
+			if err != nil {
+				return err
+			}
+			stor, err := storage.NewEncryptedStorage(fileStor, pass)
 			if err != nil {
 				return err
 			}
@@ -122,17 +125,11 @@ func Keygen() *cobra.Command {
 					return err
 				}
 
-				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   name + "/" + address + "/conf-ecdsa",
-					Value: kb,
-				}); err != nil {
+				if err := stor.Put(context.Background(), name+"/"+address+"/conf-ecdsa", kb); err != nil {
 					return err
 				}
 
-				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   name + "/" + address + "/presig-ecdsa",
-					Value: preSignB,
-				}); err != nil {
+				if err := stor.Put(context.Background(), name+"/"+address+"/presig-ecdsa", preSignB); err != nil {
 					return err
 				}
 				space()
@@ -158,10 +155,7 @@ func Keygen() *cobra.Command {
 					return err
 				}
 
-				if err := stor.Put(context.Background(), &logical.StorageEntry{
-					Key:   name + "/" + address.String() + "/conf-frost",
-					Value: configb,
-				}); err != nil {
+				if err := stor.Put(context.Background(), name+"/"+address.String()+"/conf-frost", configb); err != nil {
 					return err
 				}
 				space()

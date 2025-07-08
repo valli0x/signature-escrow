@@ -63,9 +63,12 @@ func SendWithdrawalTx() *cobra.Command {
 			another = strings.ReplaceAll(another, "-", "")[:32]
 
 			logger.Trace("create storage...")
-			stortype, pass, storconf := env.StorageType, storPass, env.StorageConfig
-
-			stor, err := storage.CreateBackend("keygen", stortype, pass, storconf, logger.Named("storage"))
+			pass, storconf := storPass, env.StorageConfig
+			fileStor, err := storage.NewFileStorage(storconf, logger.Named("storage"))
+			if err != nil {
+				return err
+			}
+			stor, err := storage.NewEncryptedStorage(fileStor, pass)
 			if err != nil {
 				return err
 			}
@@ -84,20 +87,20 @@ func SendWithdrawalTx() *cobra.Command {
 			case "ecdsa":
 				// getting config and presign
 				config := mpccmp.EmptyConfig()
-				entry, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
+				data, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
 				if err != nil {
 					return err
 				}
-				if err := cbor.Unmarshal(entry.Value, config); err != nil {
+				if err := cbor.Unmarshal(data, config); err != nil {
 					return err
 				}
 
 				presign := mpccmp.EmptyPreSign()
-				entry, err = stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
+				data, err = stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
 				if err != nil {
 					return err
 				}
-				if err := cbor.Unmarshal(entry.Value, presign); err != nil {
+				if err := cbor.Unmarshal(data, presign); err != nil {
 					return err
 				}
 
@@ -194,9 +197,12 @@ func AcceptWithdrawalTx() *cobra.Command {
 			another = strings.ReplaceAll(another, "-", "")[:32]
 
 			logger.Trace("create storage...")
-			stortype, pass, storconf := env.StorageType, storPass, env.StorageConfig
-
-			stor, err := storage.CreateBackend("keygen", stortype, pass, storconf, logger.Named("storage"))
+			pass, storconf := storPass, env.StorageConfig
+			fileStor, err := storage.NewFileStorage(storconf, logger.Named("storage"))
+			if err != nil {
+				return err
+			}
+			stor, err := storage.NewEncryptedStorage(fileStor, pass)
 			if err != nil {
 				return err
 			}
@@ -224,20 +230,20 @@ func AcceptWithdrawalTx() *cobra.Command {
 
 				// getting config and presign
 				config := mpccmp.EmptyConfig()
-				entry, err := stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
+				data, err := stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
 				if err != nil {
 					return err
 				}
-				if err := cbor.Unmarshal(entry.Value, config); err != nil {
+				if err := cbor.Unmarshal(data, config); err != nil {
 					return err
 				}
 
 				presign := mpccmp.EmptyPreSign()
-				entry, err = stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
+				data, err = stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
 				if err != nil {
 					return err
 				}
-				if err := cbor.Unmarshal(entry.Value, presign); err != nil {
+				if err := cbor.Unmarshal(data, presign); err != nil {
 					return err
 				}
 

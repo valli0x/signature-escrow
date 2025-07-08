@@ -36,10 +36,11 @@ func StartEscrowServer() *cobra.Command {
 			})
 
 			logger.Info("create storage...")
-			stor, err := storage.CreateBackend(
-				"server",
-				env.StorageType, storPass, env.StorageConfig,
-				logger.Named("storage"))
+			fileStor, err := storage.NewFileStorage(env.StorageConfig, logger.Named("storage"))
+			if err != nil {
+				return err
+			}
+			stor, err := storage.NewEncryptedStorage(fileStor, storPass)
 			if err != nil {
 				return err
 			}

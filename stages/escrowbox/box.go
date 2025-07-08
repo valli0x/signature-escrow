@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/valli0x/signature-escrow/storage"
 	"github.com/valli0x/signature-escrow/validation"
 )
 
@@ -91,28 +91,25 @@ func (p *pollination) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func GetPollination(id string, storage logical.Storage) (*pollination, error) {
-	entry, err := storage.Get(context.Background(), id)
+func GetPollination(id string, stor storage.Storage) (*pollination, error) {
+	data, err := stor.Get(context.Background(), id)
 	if err != nil {
 		return nil, err
 	}
-	if entry == nil {
+	if data == nil {
 		return nil, nil
 	}
 	p := &pollination{}
-	if err := p.UnmarshalBinary(entry.Value); err != nil {
+	if err := p.UnmarshalBinary(data); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func PutPollination(id string, p *pollination, storage logical.Storage) error {
+func PutPollination(id string, p *pollination, stor storage.Storage) error {
 	data, err := p.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	return storage.Put(context.Background(), &logical.StorageEntry{
-		Key:   id,
-		Value: data,
-	})
+	return stor.Put(context.Background(), id, data)
 }
