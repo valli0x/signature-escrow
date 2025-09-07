@@ -38,6 +38,9 @@ func init() {
 		// Forming a common key pair
 		Keygen(),
 
+		// Key generation server
+		StartKeyServer(),
+
 		// stage 2 checking escrow balance
 
 		// stage 3

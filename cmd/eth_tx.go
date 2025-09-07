@@ -95,5 +95,5 @@ func WithdrawalTokensETH() *cobra.Command {
 
 	cmd.PersistentFlags().StringVar(&node, "node", "", "ethereum node address")
 
-	return nil
+	return cmd
 }

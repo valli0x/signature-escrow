@@ -59,6 +59,23 @@ func PrintAddressPubKeyECDSA(c *cmp.Config) error {
 	return nil
 }
 
+func AddressPubKeyECDSA(c *cmp.Config) ([]byte, string, error) {
+	publicKey, err := c.PublicPoint().MarshalBinary()
+	if err != nil {
+		return nil, "", err
+	}
+
+	pubkeyECDSA, err := crypto.DecompressPubkey(publicKey)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pub := crypto.FromECDSAPub(pubkeyECDSA)
+	address := crypto.PubkeyToAddress(*pubkeyECDSA).Hex()
+
+	return pub, address, nil
+}
+
 func GetSigByte(sig *ecdsa.Signature) ([]byte, error) {
 	r, err := sig.R.MarshalBinary()
 	if err != nil {

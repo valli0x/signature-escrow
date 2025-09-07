@@ -69,6 +69,10 @@ func Keygen() *cobra.Command {
 				return err
 			}
 
+			if err := ping(net); err != nil {
+				return err
+			}
+
 			logger.Trace("create storage...")
 			pass, storconf := storPass, env.StorageConfig
 
@@ -78,10 +82,6 @@ func Keygen() *cobra.Command {
 			}
 			stor, err := storage.NewEncryptedStorage(fileStor, pass)
 			if err != nil {
-				return err
-			}
-
-			if err := ping(net); err != nil {
 				return err
 			}
 
@@ -132,6 +132,7 @@ func Keygen() *cobra.Command {
 				if err := stor.Put(context.Background(), name+"/"+address+"/presig-ecdsa", preSignB); err != nil {
 					return err
 				}
+			
 				space()
 			case "frost":
 				space()
