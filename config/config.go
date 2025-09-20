@@ -9,10 +9,12 @@ import (
 )
 
 type Env struct {
-	Communication string            `yaml:"communication"`
-	StorageType   string            `yaml:"storage_type"`
-	StorageConfig map[string]string `yaml:"storage_config"`
-	EscrowServer  string            `yaml:"escrow_server"`
+	Communication    string            `yaml:"communication"`
+	StorageType      string            `yaml:"storage_type"`
+	StorageConfig    map[string]string `yaml:"storage_config"`
+	EscrowServer     string            `yaml:"escrow_server"`
+	EthereumRPC      string            `yaml:"ethereum_rpc"`
+	BlockCypherToken string            `yaml:"blockcypher_token"`
 }
 
 func NewConfig() *Env {

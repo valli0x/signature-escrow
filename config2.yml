@@ -1,7 +1,0 @@
-communication: localhost:6379
-
-escrow_server: localhost:8282
-
-storage_type: file
-storage_config:
-    path: "./data2"

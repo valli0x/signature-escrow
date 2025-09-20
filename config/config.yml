@@ -5,3 +5,7 @@ escrow_server: localhost:8282
 storage_type: file
 storage_config:
     path: "./data"
+
+# Blockchain RPC configurations
+ethereum_rpc: "https://eth-mainnet.alchemyapi.io/v2/your-api-key"
+blockcypher_token: "your-blockcypher-token"

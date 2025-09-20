@@ -34,18 +34,10 @@ func init() {
 
 	// add commands
 	rootCmd.AddCommand(
-		// stage 1
-		// Forming a common key pair
-		Keygen(),
-
+	
 		// Key generation server
 		StartKeyServer(),
 
-		// stage 2 checking escrow balance
-
-		// stage 3
-		// getting the hash of the eth transaction
-		EthTxHash(),
 		// sending the other party an incomplete hash signature on the withdrawal of their tokens from the escrow account
 		SendWithdrawalTx(),
 		// obtaining an incomplete signature of the transaction hash to withdraw funds from another participant
