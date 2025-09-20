@@ -15,7 +15,7 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	"github.com/valli0x/signature-escrow/network/redis"
-	"github.com/valli0x/signature-escrow/stages/mpc/mpccmp"
+	"github.com/valli0x/signature-escrow/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/storage"
 )
 

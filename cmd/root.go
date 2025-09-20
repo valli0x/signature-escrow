@@ -36,7 +36,6 @@ func init() {
 		StartKeyServer(),
 		StartEscrowServer(),
 		ExchangeSignature(),
-		WithdrawalTokensETH(),
 	)
 }
 

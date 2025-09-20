@@ -10,7 +10,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/valli0x/signature-escrow/network/redis"
-	"github.com/valli0x/signature-escrow/stages/mpc/mpcfrost"
+	"github.com/valli0x/signature-escrow/mpc/mpcfrost"
 )
 
 func (s *Server) keygenFROST() http.HandlerFunc {

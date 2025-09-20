@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/spf13/cobra"
-	"github.com/valli0x/signature-escrow/stages/escrowbox"
+	"github.com/valli0x/signature-escrow/escrowbox"
 	"github.com/valli0x/signature-escrow/storage"
 )
 
