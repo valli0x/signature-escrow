@@ -32,25 +32,10 @@ func init() {
 		}
 	})
 
-	// add commands
 	rootCmd.AddCommand(
-	
-		// Key generation server
 		StartKeyServer(),
-
-		// sending the other party an incomplete hash signature on the withdrawal of their tokens from the escrow account
-		SendWithdrawalTx(),
-		// obtaining an incomplete signature of the transaction hash to withdraw funds from another participant
-		// and obtaining a full signature
-		AcceptWithdrawalTx(),
-
-		// stage 4
-		// starting a signature exchange server
 		StartEscrowServer(),
-		// exchange of signatures via an escrow server
 		ExchangeSignature(),
-
-		// sending an eth transaction to the network
 		WithdrawalTokensETH(),
 	)
 }

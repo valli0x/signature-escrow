@@ -72,6 +72,48 @@ type TxHashResponse struct {
 	TxData  string `json:"tx_data,omitempty"`
 }
 
+type SendWithdrawalTxRequest struct {
+	Algorithm      string `json:"alg"`
+	Name           string `json:"name"`
+	EscrowAddress  string `json:"escrow_address"`
+	HashTx         string `json:"hash_tx"`
+}
+
+type SendWithdrawalTxResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type AcceptWithdrawalTxRequest struct {
+	Algorithm     string `json:"alg"`
+	Name          string `json:"name"`
+	EscrowAddress string `json:"escrow_address"`
+}
+
+type AcceptWithdrawalTxResponse struct {
+	Status           string `json:"status"`
+	CompleteSignature string `json:"complete_signature"`
+	Message          string `json:"message"`
+}
+
+type SendTransactionRequest struct {
+	Network   string `json:"network"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Value     string `json:"value"`
+	GasPrice  string `json:"gas_price,omitempty"`
+	GasLimit  string `json:"gas_limit,omitempty"`
+	Signature string `json:"signature"`
+	ChainID   int64  `json:"chain_id,omitempty"`
+	NodeURL   string `json:"node_url,omitempty"`
+}
+
+type SendTransactionResponse struct {
+	Status string `json:"status"`
+	TxHash string `json:"tx_hash"`
+	Message string `json:"message"`
+}
+
 
 
 
@@ -84,6 +126,8 @@ func (s *Server) routes() *chi.Mux {
 		r.Post("/balance/check", s.checkBalance())
 		r.Post("/balance/wait", s.waitForBalance())
 		r.Post("/tx/hash", s.createTxHash())
+		r.Post("/send-withdrawal-tx", s.sendWithdrawalTx())
+		r.Post("/accept-withdrawal-tx", s.acceptWithdrawalTx())
 	})
 	return r
 }
