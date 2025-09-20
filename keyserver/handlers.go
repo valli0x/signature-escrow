@@ -128,6 +128,7 @@ func (s *Server) routes() *chi.Mux {
 		r.Post("/tx/hash", s.createTxHash())
 		r.Post("/send-withdrawal-tx", s.sendWithdrawalTx())
 		r.Post("/accept-withdrawal-tx", s.acceptWithdrawalTx())
+		r.Post("/send-transaction", s.sendTransaction())
 	})
 	return r
 }
