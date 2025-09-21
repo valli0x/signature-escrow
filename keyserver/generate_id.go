@@ -1,7 +1,6 @@
 package keyserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,23 +8,18 @@ import (
 	"github.com/hashicorp/go-uuid"
 )
 
+type IDGenerateResponse struct {
+	MyID    string `json:"my_id"`
+	Another string `json:"another_id"`
+}
+
 func (s *Server) generateIDs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req IDGenerateRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
-			return
-		}
-
-		if req.Name == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("name is required"))
-			return
-		}
 
 		// Generate my ID
 		myid, err := uuid.GenerateUUID()
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to generate my ID: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGenerateMyID, err))
 			return
 		}
 		myid = strings.ReplaceAll(myid, "-", "")[:32]
@@ -33,12 +27,12 @@ func (s *Server) generateIDs() http.HandlerFunc {
 		// Generate another participant ID
 		another, err := uuid.GenerateUUID()
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to generate another ID: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGenerateAnotherID, err))
 			return
 		}
 		another = strings.ReplaceAll(another, "-", "")[:32]
 
-		response := IDGenerateResponse{
+		response := &IDGenerateResponse{
 			MyID:    myid,
 			Another: another,
 		}

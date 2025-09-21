@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/valli0x/signature-escrow/config"
+	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/storage"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -22,18 +23,24 @@ const (
 )
 
 type Server struct {
-	addr   string
-	srv    *http.Server
-	stor   storage.Storage
-	logger hclog.Logger
-	env    *config.Env
+	addr        string
+	srv         *http.Server
+	stor        storage.Storage
+	net         network.Channel
+	logger      *slog.Logger
+	env         *config.Env
+	storagePass string
+	Conn        *grpc.ClientConn
 }
 
 type ServerConfig struct {
-	Addr   string
-	Stor   storage.Storage
-	Logger hclog.Logger
-	Env    *config.Env
+	Addr        string
+	Stor        storage.Storage
+	Net         network.Channel
+	Logger      *slog.Logger
+	Env         *config.Env
+	StoragePass string
+	Conn        *grpc.ClientConn
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -45,11 +52,14 @@ func NewServer(cfg *ServerConfig) *Server {
 	}
 
 	s := &Server{
-		srv:    httpServer,
-		addr:   cfg.Addr,
-		stor:   cfg.Stor,
-		logger: cfg.Logger,
-		env:    cfg.Env,
+		srv:         httpServer,
+		addr:        cfg.Addr,
+		stor:        cfg.Stor,
+		net:         cfg.Net,
+		logger:      cfg.Logger,
+		env:         cfg.Env,
+		storagePass: cfg.StoragePass,
+		Conn:        cfg.Conn,
 	}
 
 	s.srv.Handler = s.routes()
@@ -60,7 +70,7 @@ func NewServer(cfg *ServerConfig) *Server {
 func (s *Server) Run(ctx context.Context) {
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		log.Printf("can't listen on %s. server quitting: %v", s.addr, err)
+		s.logger.Error("can't listen on address, server quitting", "addr", s.addr, "error", err)
 		return
 	}
 
@@ -72,18 +82,18 @@ func (s *Server) Run(ctx context.Context) {
 		<-ctx.Done()
 
 		if err := s.srv.Shutdown(context.Background()); err != nil {
-			log.Printf("HTTP server Shutdown: %v", err)
+			s.logger.Error("HTTP server shutdown error", "error", err)
 		}
 	}(wg)
 
-	log.Printf("key server listening on %s", s.addr)
+	s.logger.Info("key server listening", "addr", s.addr)
 	if err := s.srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		wg.Done()
-		log.Printf("unexpected (http.Server).Serve error: %v", err)
+		s.logger.Error("unexpected HTTP server serve error", "error", err)
 	}
 
 	wg.Wait()
-	log.Printf("key server off")
+	s.logger.Info("key server off")
 }
 
 func respondOk(w http.ResponseWriter, body interface{}) {

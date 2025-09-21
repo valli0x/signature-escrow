@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"log/slog"
 	"sync"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	pb "github.com/valli0x/signature-escrow/network/server/proto"
 	"google.golang.org/grpc"
@@ -18,16 +18,12 @@ type client struct {
 	grpc         pb.ExchangeClient
 	conn         *grpc.ClientConn
 	out          chan *protocol.Message
-	logger       hclog.Logger
+	logger       *slog.Logger
 	mtx          sync.Mutex
 	done         chan struct{}
 }
 
-func NewClient(address, accept, send string, logger hclog.Logger) (*client, error) {
-	conn, err := grpc.Dial(address)
-	if err != nil {
-		return nil, err
-	}
+func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.ClientConn) (*client, error) {
 	client := &client{
 		address: address,
 		grpc:    pb.NewExchangeClient(conn),
@@ -43,7 +39,7 @@ func NewClient(address, accept, send string, logger hclog.Logger) (*client, erro
 func (c *client) receiving() {
 	stream, err := c.grpc.Next(context.Background(), &pb.NextReq{Name: c.accept})
 	if err != nil {
-		c.logger.Error("could not start Next stream: %v", err)
+		c.logger.Error("could not start Next stream", "error", err)
 	}
 
 	for {
@@ -52,19 +48,19 @@ func (c *client) receiving() {
 			break
 		}
 		if err != nil {
-			c.logger.Error("failed to receive a NextRes: %v", err)
+			c.logger.Error("failed to receive a NextRes", "error", err)
 			break
 		}
 
 		data, err := base64.StdEncoding.DecodeString(nextRes.GetMsgbody())
 		if err != nil {
-			c.logger.Error("base64 unmarshal error", err)
+			c.logger.Error("base64 unmarshal error", "error", err)
 			break
 		}
 
 		msg := &protocol.Message{}
 		if err := msg.UnmarshalBinary(data); err != nil {
-			c.logger.Error("message unmarchal error", err)
+			c.logger.Error("message unmarchal error", "error", err)
 			break
 		}
 
@@ -75,14 +71,14 @@ func (c *client) receiving() {
 func (c *client) Send(msg *protocol.Message) {
 	data, err := msg.MarshalBinary()
 	if err != nil {
-		c.logger.Error("marchal binary error", err)
+		c.logger.Error("marchal binary error", "error", err)
 		return
 	}
 	dataStr := base64.StdEncoding.EncodeToString(data)
 
 	_, err = c.grpc.Send(context.Background(), &pb.SendReq{Name: c.send, Msgbody: dataStr})
 	if err != nil {
-		c.logger.Error("could not send: %v", err)
+		c.logger.Error("could not send", "error", err)
 	}
 }
 

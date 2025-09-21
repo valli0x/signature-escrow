@@ -3,14 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/spf13/cobra"
 	"github.com/valli0x/signature-escrow/keyserver"
 	"github.com/valli0x/signature-escrow/storage"
+	"google.golang.org/grpc"
 )
 
 func StartKeyServer() *cobra.Command {
@@ -24,17 +25,15 @@ func StartKeyServer() *cobra.Command {
 		Args:         cobra.ExactArgs(0),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-				Name:   "keyserver",
-				Output: os.Stdout,
-				Level:  hclog.DefaultLevel,
-			})
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
 
 			// Storage setup
-			logger.Trace("create storage...")
+			logger.Debug("create storage...")
 			pass, storconf := storPass, env.StorageConfig
 
-			fileStor, err := storage.NewFileStorage(storconf, logger.Named("storage"))
+			fileStor, err := storage.NewFileStorage(storconf, logger.With("component", "storage"))
 			if err != nil {
 				return err
 			}
@@ -43,12 +42,20 @@ func StartKeyServer() *cobra.Command {
 				return err
 			}
 
+			// Network setup
+			conn, err := grpc.NewClient(addr)
+			if err != nil {
+				return err
+			}
+
 			// Server configuration
 			config := &keyserver.ServerConfig{
-				Addr:   addr,
-				Stor:   stor,
-				Logger: logger,
-				Env:    env,
+				Addr:        addr,
+				Stor:        stor,
+				Logger:      logger,
+				Env:         env,
+				StoragePass: pass,
+				Conn:        conn,
 			}
 
 			server := keyserver.NewServer(config)

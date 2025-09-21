@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -16,16 +17,34 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+type SendTransactionRequest struct {
+	Network   string `json:"network"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Value     string `json:"value"`
+	GasPrice  string `json:"gas_price,omitempty"`
+	GasLimit  string `json:"gas_limit,omitempty"`
+	Signature string `json:"signature"`
+	ChainID   int64  `json:"chain_id,omitempty"`
+	NodeURL   string `json:"node_url,omitempty"`
+}
+
+type SendTransactionResponse struct {
+	Status  string `json:"status"`
+	TxHash  string `json:"tx_hash"`
+	Message string `json:"message"`
+}
+
 func (s *Server) sendTransaction() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SendTransactionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %v", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
 			return
 		}
 
 		if req.Network == "" || req.From == "" || req.To == "" || req.Value == "" || req.Signature == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("network, from, to, value and signature are required"))
+			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkFromToValueSigRequired))
 			return
 		}
 
@@ -40,12 +59,12 @@ func (s *Server) sendTransaction() http.HandlerFunc {
 		case "bitcoin", "btc":
 			response, err = s.sendBitcoinTransaction(req)
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
 			return
 		}
 
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to send transaction: %v", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToSendTransaction, err))
 			return
 		}
 
@@ -166,9 +185,9 @@ func (s *Server) sendEthereumTransaction(req SendTransactionRequest) (SendTransa
 	response.TxHash = tx.Hash().Hex()
 	response.Message = "Transaction sent successfully to Ethereum network"
 
-	s.logger.Info("Ethereum transaction sent", 
+	s.logger.Info("Ethereum transaction sent",
 		"from", req.From,
-		"to", req.To, 
+		"to", req.To,
 		"value", req.Value,
 		"tx_hash", response.TxHash)
 
@@ -215,9 +234,9 @@ func (s *Server) sendBitcoinTransaction(req SendTransactionRequest) (SendTransac
 	response.TxHash = fmt.Sprintf("btc_tx_sent_%s", req.From[:8]) // Simplified hash for now
 	response.Message = "Transaction sent successfully to Bitcoin network"
 
-	s.logger.Info("Bitcoin transaction sent", 
+	s.logger.Info("Bitcoin transaction sent",
 		"from", req.From,
-		"to", req.To, 
+		"to", req.To,
 		"value", req.Value,
 		"tx_hash", response.TxHash)
 

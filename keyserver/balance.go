@@ -3,6 +3,7 @@ package keyserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,21 +15,51 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+type BalanceCheckRequest struct {
+	Network  string `json:"network"`
+	Address  string `json:"address"`
+	Expected int64  `json:"expected"`
+}
+
+type BalanceCheckResponse struct {
+	Network      string `json:"network"`
+	Address      string `json:"address"`
+	Balance      int64  `json:"balance"`
+	Expected     int64  `json:"expected"`
+	IsSufficient bool   `json:"is_sufficient"`
+}
+
+type BalanceWaitRequest struct {
+	Network    string `json:"network"`
+	Address    string `json:"address"`
+	Expected   int64  `json:"expected"`
+	TimeoutSec int    `json:"timeout_sec,omitempty"`
+}
+
+type BalanceWaitResponse struct {
+	Network      string `json:"network"`
+	Address      string `json:"address"`
+	Balance      int64  `json:"balance"`
+	Expected     int64  `json:"expected"`
+	IsSufficient bool   `json:"is_sufficient"`
+	TimedOut     bool   `json:"timed_out"`
+}
+
 func (s *Server) checkBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceCheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %v", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
 			return
 		}
 
 		if req.Network == "" || req.Address == "" || req.Expected <= 0 {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("network, address and expected amount are required"))
+			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkAddressExpectedRequired))
 			return
 		}
 
 		network := strings.ToLower(req.Network)
-		
+
 		var response BalanceCheckResponse
 		var err error
 
@@ -38,12 +69,12 @@ func (s *Server) checkBalance() http.HandlerFunc {
 		case "bitcoin", "btc":
 			response, err = s.checkBitcoinBalance(req)
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
 			return
 		}
 
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to check balance: %v", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCheckBalance, err))
 			return
 		}
 
@@ -140,12 +171,12 @@ func (s *Server) waitForBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceWaitRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %v", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
 			return
 		}
 
 		if req.Network == "" || req.Address == "" || req.Expected <= 0 {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("network, address and expected amount are required"))
+			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkAddressExpectedRequired))
 			return
 		}
 
@@ -154,33 +185,28 @@ func (s *Server) waitForBalance() http.HandlerFunc {
 		}
 
 		network := strings.ToLower(req.Network)
-		
-		response := BalanceWaitResponse{
-			Network:  req.Network,
-			Address:  req.Address,
-			Expected: req.Expected,
-		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(req.TimeoutSec)*time.Second)
 		defer cancel()
 
+		var response BalanceWaitResponse
+		var err error
+
 		switch network {
 		case "ethereum", "eth":
-			result, err := s.waitForEthereumBalance(ctx, req)
+			response, err = s.waitForEthereumBalance(ctx, req)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to wait for Ethereum balance: %v", err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToWaitForEthereumBalance, err))
 				return
 			}
-			response = result
 		case "bitcoin", "btc":
-			result, err := s.waitForBitcoinBalance(ctx, req)
+			response, err = s.waitForBitcoinBalance(ctx, req)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to wait for Bitcoin balance: %v", err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToWaitForBitcoinBalance, err))
 				return
 			}
-			response = result
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
 			return
 		}
 

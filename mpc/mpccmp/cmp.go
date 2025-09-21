@@ -13,7 +13,7 @@ import (
 	"github.com/valli0x/signature-escrow/network"
 )
 
-func CMPKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Network, pl *pool.Pool) (*cmp.Config, error) {
+func CMPKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Channel, pl *pool.Pool) (*cmp.Config, error) {
 	h, err := protocol.NewMultiHandler(cmp.Keygen(curve.Secp256k1{}, id, ids, threshold, pl), nil)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func CMPKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Network,
 	return r.(*cmp.Config), nil
 }
 
-func CMPSign(c *cmp.Config, m []byte, ids party.IDSlice, n network.Network, pl *pool.Pool) (*ecdsa.Signature, error) {
+func CMPSign(c *cmp.Config, m []byte, ids party.IDSlice, n network.Channel, pl *pool.Pool) (*ecdsa.Signature, error) {
 	h, err := protocol.NewMultiHandler(cmp.Sign(c, ids, m, pl), nil)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func CMPSign(c *cmp.Config, m []byte, ids party.IDSlice, n network.Network, pl *
 	return signature, nil
 }
 
-func CMPRefresh(c *cmp.Config, n network.Network, pl *pool.Pool) (*cmp.Config, error) {
+func CMPRefresh(c *cmp.Config, n network.Channel, pl *pool.Pool) (*cmp.Config, error) {
 	hRefresh, err := protocol.NewMultiHandler(cmp.Refresh(c, pl), nil)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func CMPRefresh(c *cmp.Config, n network.Network, pl *pool.Pool) (*cmp.Config, e
 	return r.(*cmp.Config), nil
 }
 
-func CMPPreSignOnline(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, n network.Network, pl *pool.Pool) (*ecdsa.Signature, error) {
+func CMPPreSignOnline(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, n network.Channel, pl *pool.Pool) (*ecdsa.Signature, error) {
 	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func CMPPreSignOnline(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte,
 	return signature, nil
 }
 
-func CMPPreSign(c *cmp.Config, signers party.IDSlice, n network.Network, pl *pool.Pool) (*ecdsa.PreSignature, error) {
+func CMPPreSign(c *cmp.Config, signers party.IDSlice, n network.Channel, pl *pool.Pool) (*ecdsa.PreSignature, error) {
 	h, err := protocol.NewMultiHandler(cmp.Presign(c, signers, pl), nil)
 	if err != nil {
 		return nil, err

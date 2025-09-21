@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,7 +17,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/errwrap"
-	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/permitpool"
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
@@ -40,7 +40,7 @@ var (
 type FileBackend struct {
 	sync.RWMutex
 	path       string
-	logger     log.Logger
+	logger     *slog.Logger
 	permitPool *permitpool.Pool
 }
 
@@ -53,7 +53,7 @@ type fileEntry struct {
 }
 
 // NewFileBackend constructs a FileBackend using the given directory
-func NewFileBackend(conf map[string]string, logger log.Logger) (physical.Backend, error) {
+func NewFileBackend(conf map[string]string, logger *slog.Logger) (physical.Backend, error) {
 	path, ok := conf["path"]
 	if !ok {
 		return nil, fmt.Errorf("'path' must be set")
@@ -66,7 +66,7 @@ func NewFileBackend(conf map[string]string, logger log.Logger) (physical.Backend
 	}, nil
 }
 
-func NewTransactionalFileBackend(conf map[string]string, logger log.Logger) (physical.Backend, error) {
+func NewTransactionalFileBackend(conf map[string]string, logger *slog.Logger) (physical.Backend, error) {
 	path, ok := conf["path"]
 	if !ok {
 		return nil, fmt.Errorf("'path' must be set")

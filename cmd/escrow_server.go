@@ -10,12 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/spf13/cobra"
 	"github.com/valli0x/signature-escrow/escrowbox"
@@ -35,14 +35,12 @@ func StartEscrowServer() *cobra.Command {
 		Args:         cobra.ExactArgs(0),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-				Name:   "server command",
-				Output: os.Stdout,
-				Level:  hclog.DefaultLevel,
-			})
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
 
 			logger.Info("create storage...")
-			fileStor, err := storage.NewFileStorage(env.StorageConfig, logger.Named("storage"))
+			fileStor, err := storage.NewFileStorage(env.StorageConfig, logger.With("component", "storage"))
 			if err != nil {
 				return err
 			}

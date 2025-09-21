@@ -3,6 +3,7 @@ package keyserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,20 +11,31 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
-	"github.com/valli0x/signature-escrow/network/redis"
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
+	"github.com/valli0x/signature-escrow/network/server"
 )
+
+type KeygenRequest struct {
+	Name    string `json:"name"`
+	MyID    string `json:"my_id"`
+	Another string `json:"another_id"`
+}
+
+type KeygenECDSAResponse struct {
+	PublicKey string `json:"public_key"`
+	Address   string `json:"address"`
+}
 
 func (s *Server) keygenECDSA() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req KeygenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequest, err))
 			return
 		}
 
 		if req.Name == "" || req.MyID == "" || req.Another == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("name, my_id, and another_id are required"))
+			respondError(w, http.StatusBadRequest, errors.New(ErrNameMyIDAnotherRequired))
 			return
 		}
 
@@ -33,10 +45,10 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		signers := party.IDSlice{party.ID(myid), party.ID(another)}
 
 		// Setup network connection
-		net, err := redis.NewRedisNet(s.env.Communication, myid, another, s.logger.Named("network"))
+		net, err := exchange.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
 		if err != nil {
 			s.logger.Error("Failed to setup network", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
 			return
 		}
 
@@ -50,7 +62,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		configETH, err := mpccmp.CMPKeygen(party.ID(myid), signers, 1, net, pl)
 		if err != nil {
 			s.logger.Error("ECDSA keygen failed", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("ECDSA keygen failed: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrECDSAKeygenFailed, err))
 			return
 		}
 
@@ -58,7 +70,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		presignature, err := mpccmp.CMPPreSign(configETH, signers, net, pl)
 		if err != nil {
 			s.logger.Error("ECDSA presign failed", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("ECDSA presign failed: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrECDSAPresignFailed, err))
 			return
 		}
 
@@ -66,7 +78,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		address, err := mpccmp.GetAddress(configETH)
 		if err != nil {
 			s.logger.Error("Failed to get ECDSA address", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get address: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetAddress, err))
 			return
 		}
 
@@ -74,7 +86,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		pubKeyData, err := mpccmp.GetPublicKeyByte(configETH)
 		if err != nil {
 			s.logger.Error("Failed to get ECDSA public key", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get public key: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetPublicKey, err))
 			return
 		}
 
@@ -82,26 +94,28 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		kb, err := configETH.MarshalBinary()
 		if err != nil {
 			s.logger.Error("Failed to marshal ECDSA config", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to marshal config: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToMarshalConfig, err))
 			return
 		}
 
 		preSignB, err := cbor.Marshal(presignature)
 		if err != nil {
 			s.logger.Error("Failed to marshal presignature", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to marshal presignature: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToMarshalPresign, err))
 			return
 		}
 
-		if err := s.stor.Put(context.Background(), req.Name+"/"+address+"/conf-ecdsa", kb); err != nil {
+		keyConfig := req.Name + "/" + address + "/conf-ecdsa"
+		if err := s.stor.Put(context.Background(), keyConfig, kb); err != nil {
 			s.logger.Error("Failed to save ECDSA config", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save config: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToSaveConfig, err))
 			return
 		}
 
-		if err := s.stor.Put(context.Background(), req.Name+"/"+address+"/presig-ecdsa", preSignB); err != nil {
+		preSignConfig := req.Name + "/" + address + "/presig-ecdsa"
+		if err := s.stor.Put(context.Background(), preSignConfig, preSignB); err != nil {
 			s.logger.Error("Failed to save presignature", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save presignature: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToSavePresign, err))
 			return
 		}
 

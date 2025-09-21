@@ -8,9 +8,9 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 
-	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/physical"
 	"github.com/valli0x/signature-escrow/storage/file"
 )
@@ -25,7 +25,7 @@ type FileStorage struct {
 	backend physical.Backend
 }
 
-func NewFileStorage(config map[string]string, logger hclog.Logger) (*FileStorage, error) {
+func NewFileStorage(config map[string]string, logger *slog.Logger) (*FileStorage, error) {
 	fb, err := file.NewFileBackend(config, logger)
 	if err != nil {
 		return nil, err

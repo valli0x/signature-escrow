@@ -12,7 +12,7 @@ import (
 	"github.com/taurusgroup/multi-party-sig/protocols/frost"
 )
 
-func FrostKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Network) (*frost.Config, error) {
+func FrostKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Channel) (*frost.Config, error) {
 	h, err := protocol.NewMultiHandler(frost.Keygen(curve.Secp256k1{}, id, ids, threshold), nil)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func FrostKeygen(id party.ID, ids party.IDSlice, threshold int, n network.Networ
 	return r.(*frost.Config), nil
 }
 
-func FrostSign(c *frost.Config, id party.ID, m []byte, signers party.IDSlice, n network.Network) error {
+func FrostSign(c *frost.Config, id party.ID, m []byte, signers party.IDSlice, n network.Channel) error {
 	h, err := protocol.NewMultiHandler(frost.Sign(c, signers, m), nil)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func FrostSign(c *frost.Config, id party.ID, m []byte, signers party.IDSlice, n 
 	return nil
 }
 
-func FrostKeygenTaproot(id party.ID, ids party.IDSlice, threshold int, n network.Network) (*frost.TaprootConfig, error) {
+func FrostKeygenTaproot(id party.ID, ids party.IDSlice, threshold int, n network.Channel) (*frost.TaprootConfig, error) {
 	h, err := protocol.NewMultiHandler(frost.KeygenTaproot(id, ids, threshold), nil)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func FrostKeygenTaproot(id party.ID, ids party.IDSlice, threshold int, n network
 	return r.(*frost.TaprootConfig), nil
 }
 
-func FrostSignTaproot(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+func FrostSignTaproot(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Channel) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func FrostSignTaproot(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n
 */
 
 // incomplete signature
-func FrostSignTaprootInc(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Network) error {
+func FrostSignTaprootInc(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Channel) error {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func FrostSignTaprootInc(c *frost.TaprootConfig, m []byte, signers party.IDSlice
 	return nil
 }
 
-func FrostSignTaprootCoSign(c *frost.TaprootConfig, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+func FrostSignTaprootCoSign(c *frost.TaprootConfig, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Channel) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func FrostSignTaprootCoSign(c *frost.TaprootConfig, incSig *protocol.Message, m 
 
 	// skip own round3
 	<-h.Listen()
-	
+
 	// accept round3
 	round3, ok := <-n.Next()
 	if !ok {

@@ -1,4 +1,4 @@
-package testnet
+package mpc
 
 import (
 	"sync"

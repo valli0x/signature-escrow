@@ -9,20 +9,25 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
-	"github.com/valli0x/signature-escrow/network/redis"
 	"github.com/valli0x/signature-escrow/mpc/mpcfrost"
+	"github.com/valli0x/signature-escrow/network/server"
 )
+
+type KeygenFROSTResponse struct {
+	PublicKey string `json:"public_key"`
+	Address   string `json:"address"`
+}
 
 func (s *Server) keygenFROST() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req KeygenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequest, err))
 			return
 		}
 
 		if req.Name == "" || req.MyID == "" || req.Another == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("name, my_id, and another_id are required"))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrNameMyIDAnotherRequired))
 			return
 		}
 
@@ -32,10 +37,10 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		signers := party.IDSlice{party.ID(myid), party.ID(another)}
 
 		// Setup network connection
-		net, err := redis.NewRedisNet(s.env.Communication, myid, another, s.logger.Named("network"))
+		net, err := exchange.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
 		if err != nil {
 			s.logger.Error("Failed to setup network", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
 			return
 		}
 
@@ -45,7 +50,7 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		configBTC, err := mpcfrost.FrostKeygenTaproot(party.ID(myid), signers, 1, net)
 		if err != nil {
 			s.logger.Error("FROST keygen failed", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("FROST keygen failed: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFrostKeygenFailed, err))
 			return
 		}
 
@@ -53,7 +58,7 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		address, err := mpcfrost.GetAddress(configBTC)
 		if err != nil {
 			s.logger.Error("Failed to get FROST address", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get address: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetAddress, err))
 			return
 		}
 
@@ -61,7 +66,7 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		pubKeyData, err := mpcfrost.GetPublicKeyByte(configBTC)
 		if err != nil {
 			s.logger.Error("Failed to get FROST public key", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get public key: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetPublicKey, err))
 			return
 		}
 
@@ -69,13 +74,13 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		configb, err := cbor.Marshal(configBTC)
 		if err != nil {
 			s.logger.Error("Failed to marshal FROST config", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to marshal config: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToMarshalConfig, err))
 			return
 		}
 
 		if err := s.stor.Put(context.Background(), req.Name+"/"+address.String()+"/conf-frost", configb); err != nil {
 			s.logger.Error("Failed to save FROST config", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save config: %w", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToSaveConfig, err))
 			return
 		}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -16,21 +17,36 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+type TxHashRequest struct {
+	Network  string `json:"network"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Amount   int64  `json:"amount"`
+	GasLimit int64  `json:"gas_limit,omitempty"`
+	ChainID  int64  `json:"chain_id,omitempty"`
+}
+
+type TxHashResponse struct {
+	Network string `json:"network"`
+	Hash    string `json:"hash"`
+	TxData  string `json:"tx_data,omitempty"`
+}
+
 func (s *Server) createTxHash() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req TxHashRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %v", err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
 			return
 		}
 
 		if req.Network == "" || req.From == "" || req.To == "" || req.Amount <= 0 {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("network, from, to and amount are required"))
+			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkFromToAmountRequired))
 			return
 		}
 
 		network := strings.ToLower(req.Network)
-		
+
 		var response TxHashResponse
 		var err error
 
@@ -40,12 +56,12 @@ func (s *Server) createTxHash() http.HandlerFunc {
 		case "bitcoin", "btc":
 			response, err = s.createBitcoinTxHash(req)
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
 			return
 		}
 
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create transaction hash: %v", err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCreateTxHash, err))
 			return
 		}
 
@@ -106,7 +122,7 @@ func (s *Server) createEthereumTxHash(req TxHashRequest) (TxHashResponse, error)
 	// Create transaction
 	toAddr := common.HexToAddress(req.To)
 	value := big.NewInt(req.Amount)
-	
+
 	tx := types.NewTransaction(
 		nonce,
 		toAddr,
@@ -119,7 +135,7 @@ func (s *Server) createEthereumTxHash(req TxHashRequest) (TxHashResponse, error)
 	// Create signer and get hash
 	signer := types.NewLondonSigner(big.NewInt(chainID))
 	hash := signer.Hash(tx)
-	
+
 	response.Hash = hex.EncodeToString(hash.Bytes())
 
 	// Serialize transaction data for reference
@@ -158,7 +174,7 @@ func (s *Server) createBitcoinTxHash(req TxHashRequest) (TxHashResponse, error) 
 		if err != nil {
 			return response, fmt.Errorf("failed to decode Bitcoin transaction hash: %v", err)
 		}
-		
+
 		response.Hash = hex.EncodeToString(hash)
 		// Store the hash from BlockCypher as reference
 		response.TxData = tx.ToSign[0]
