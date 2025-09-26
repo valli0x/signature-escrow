@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
+	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/storage"
 )
 
@@ -20,6 +22,8 @@ type SendWithdrawalTxRequest struct {
 	Name          string `json:"name"`
 	EscrowAddress string `json:"escrow_address"`
 	HashTx        string `json:"hash_tx"`
+	MyID          string `json:"my_id"`
+	Another       string `json:"another_id"`
 }
 
 type SendWithdrawalTxResponse struct {
@@ -31,6 +35,8 @@ type AcceptWithdrawalTxRequest struct {
 	Algorithm     string `json:"alg"`
 	Name          string `json:"name"`
 	EscrowAddress string `json:"escrow_address"`
+	MyID          string `json:"my_id"`
+	Another       string `json:"another_id"`
 }
 
 type AcceptWithdrawalTxResponse struct {
@@ -48,7 +54,7 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 			return
 		}
 
-		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" || req.HashTx == "" {
+		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" || req.HashTx == "" || req.MyID == "" || req.Another == "" {
 			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrAlgNameEscrowHashRequired))
 			return
 		}
@@ -57,6 +63,8 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 		name := req.Name
 		escrowAddress := req.EscrowAddress
 		hashTxWithdrawal := req.HashTx
+		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
+		another := strings.ReplaceAll(req.Another, "-", "")[:32]
 
 		// Create encrypted storage using server's storage
 		stor, err := storage.NewEncryptedStorage(s.stor, s.storagePass)
@@ -65,8 +73,12 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 			return
 		}
 
-		// Use server's network connection
-		net := s.net
+		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		if err != nil {
+			s.logger.Error("Failed to setup network", "error", err)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
+			return
+		}
 
 		// send incomplete signature
 		switch alg {
@@ -160,7 +172,7 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 			return
 		}
 
-		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" {
+		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" || req.MyID == "" || req.Another == "" {
 			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrAlgNameEscrowRequired))
 			return
 		}
@@ -168,6 +180,8 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 		alg := req.Algorithm
 		name := req.Name
 		address := req.EscrowAddress
+		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
+		another := strings.ReplaceAll(req.Another, "-", "")[:32]
 
 		// Create encrypted storage using server's storage
 		pass := "default_pass" // This should come from server config
@@ -177,7 +191,12 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 			return
 		}
 
-		net := s.net
+		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		if err != nil {
+			s.logger.Error("Failed to setup network", "error", err)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
+			return
+		}
 
 		// accept incomplete signature and sign it
 		switch alg {

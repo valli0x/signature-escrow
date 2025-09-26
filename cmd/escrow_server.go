@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-uuid"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/valli0x/signature-escrow/escrowbox"
 	"github.com/valli0x/signature-escrow/storage"
@@ -80,12 +80,9 @@ func ExchangeSignature() *cobra.Command {
 				return
 			}
 
+			// TODO: Remove this
 			// ids setup
-			myid, err := uuid.GenerateUUID()
-			if err != nil {
-				return err
-			}
-			myid = strings.ReplaceAll(myid, "-", "")[:32]
+			myid := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
 			fmt.Printf("your ID: %s\n", myid)
 
 			// another of participant ID

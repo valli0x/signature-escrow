@@ -1,4 +1,4 @@
-package exchange
+package network
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
-	pb "github.com/valli0x/signature-escrow/network/server/proto"
+	pb "github.com/valli0x/signature-escrow/network/proto"
 	"google.golang.org/grpc"
 )
 

@@ -1,4 +1,4 @@
-package exchange
+package network
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	nats "github.com/nats-io/nats.go"
-	pb "github.com/valli0x/signature-escrow/network/server/proto"
+	pb "github.com/valli0x/signature-escrow/network/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )

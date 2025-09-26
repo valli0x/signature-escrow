@@ -12,7 +12,7 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
-	"github.com/valli0x/signature-escrow/network/server"
+	"github.com/valli0x/signature-escrow/network"
 )
 
 type KeygenRequest struct {
@@ -45,7 +45,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		signers := party.IDSlice{party.ID(myid), party.ID(another)}
 
 		// Setup network connection
-		net, err := exchange.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
 		if err != nil {
 			s.logger.Error("Failed to setup network", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))

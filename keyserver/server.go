@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/valli0x/signature-escrow/config"
-	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
 )
@@ -26,7 +25,6 @@ type Server struct {
 	addr        string
 	srv         *http.Server
 	stor        storage.Storage
-	net         network.Channel
 	logger      *slog.Logger
 	env         *config.Env
 	storagePass string
@@ -36,7 +34,6 @@ type Server struct {
 type ServerConfig struct {
 	Addr        string
 	Stor        storage.Storage
-	Net         network.Channel
 	Logger      *slog.Logger
 	Env         *config.Env
 	StoragePass string
@@ -55,7 +52,6 @@ func NewServer(cfg *ServerConfig) *Server {
 		srv:         httpServer,
 		addr:        cfg.Addr,
 		stor:        cfg.Stor,
-		net:         cfg.Net,
 		logger:      cfg.Logger,
 		env:         cfg.Env,
 		storagePass: cfg.StoragePass,

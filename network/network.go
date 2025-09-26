@@ -5,17 +5,13 @@ import (
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
 )
 
-type Communication interface {
-	NewChannel(string) Channel
-}
-
-type Channel interface {
+type Network interface {
 	Next() <-chan *protocol.Message
 	Send(*protocol.Message)
 	Done() chan struct{}
 }
 
-func HandlerLoop(id party.ID, h protocol.Handler, channel Channel) {
+func HandlerLoop(id party.ID, h protocol.Handler, channel Network) {
 	for {
 		select {
 		case msg, ok := <-h.Listen():

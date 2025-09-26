@@ -1,11 +1,10 @@
 package keyserver
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/go-uuid"
+	"github.com/google/uuid"
 )
 
 type IDGenerateResponse struct {
@@ -15,22 +14,11 @@ type IDGenerateResponse struct {
 
 func (s *Server) generateIDs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		// Generate my ID
-		myid, err := uuid.GenerateUUID()
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGenerateMyID, err))
-			return
-		}
-		myid = strings.ReplaceAll(myid, "-", "")[:32]
+		myid := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
 
 		// Generate another participant ID
-		another, err := uuid.GenerateUUID()
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGenerateAnotherID, err))
-			return
-		}
-		another = strings.ReplaceAll(another, "-", "")[:32]
+		another := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
 
 		response := &IDGenerateResponse{
 			MyID:    myid,
