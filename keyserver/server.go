@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	ipv4 = "tcp4"
 	timeoutSeconds = 10
 	idleTimeout    = 20
 	maxHeaderBytes = 1024 * 1024
@@ -64,7 +65,7 @@ func NewServer(cfg *ServerConfig) *Server {
 }
 
 func (s *Server) Run(ctx context.Context) {
-	listener, err := net.Listen("tcp", s.addr)
+	listener, err := net.Listen(ipv4, s.addr)
 	if err != nil {
 		s.logger.Error("can't listen on address, server quitting", "addr", s.addr, "error", err)
 		return
