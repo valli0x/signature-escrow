@@ -12,11 +12,13 @@ import (
 	"github.com/valli0x/signature-escrow/keyserver"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func StartKeyServer() *cobra.Command {
 	var (
-		addr string
+		addr      string
+		jwtSecret string
 	)
 
 	cmd := &cobra.Command{
@@ -42,8 +44,8 @@ func StartKeyServer() *cobra.Command {
 				return err
 			}
 
-			// Network setup
-			conn, err := grpc.NewClient(addr)
+			// Network setup (connect to communication gRPC server)
+			conn, err := grpc.NewClient(env.Communication, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				return err
 			}
@@ -56,6 +58,7 @@ func StartKeyServer() *cobra.Command {
 				Env:         env,
 				StoragePass: pass,
 				Conn:        conn,
+				JWTSecret:   []byte(jwtSecret),
 			}
 
 			server := keyserver.NewServer(config)
@@ -82,6 +85,7 @@ func StartKeyServer() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringVar(&addr, "addr", ":8080", "server listen address")
+	cmd.PersistentFlags().StringVar(&jwtSecret, "jwt-secret", "", "secret key for JWT token signing")
 
 	return cmd
 }

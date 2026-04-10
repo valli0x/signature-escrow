@@ -10,15 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/valli0x/signature-escrow/auth"
 	"github.com/valli0x/signature-escrow/config"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
 )
 
 const (
-	ipv4 = "tcp4"
-	timeoutSeconds = 10
-	idleTimeout    = 20
+	ipv4           = "tcp4"
+	timeoutSeconds = 300
+	idleTimeout    = 300
 	maxHeaderBytes = 1024 * 1024
 )
 
@@ -30,6 +31,8 @@ type Server struct {
 	env         *config.Env
 	storagePass string
 	Conn        *grpc.ClientConn
+	jwtSecret   []byte
+	nonceStore  *auth.NonceStore
 }
 
 type ServerConfig struct {
@@ -39,6 +42,7 @@ type ServerConfig struct {
 	Env         *config.Env
 	StoragePass string
 	Conn        *grpc.ClientConn
+	JWTSecret   []byte
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -57,6 +61,8 @@ func NewServer(cfg *ServerConfig) *Server {
 		env:         cfg.Env,
 		storagePass: cfg.StoragePass,
 		Conn:        cfg.Conn,
+		jwtSecret:   cfg.JWTSecret,
+		nonceStore:  auth.NewNonceStore(),
 	}
 
 	s.srv.Handler = s.routes()
