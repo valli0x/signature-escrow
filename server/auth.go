@@ -1,4 +1,4 @@
-package keyserver
+package server
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package keyserver
+package client
 
 import (
 	"context"
@@ -45,17 +45,16 @@ type AcceptWithdrawalTxResponse struct {
 	Message           string `json:"message"`
 }
 
-// Command send the own withdrawal transaction with our incomplete signature
-func (s *Server) sendWithdrawalTx() http.HandlerFunc {
+func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SendWithdrawalTxRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %w", err))
 			return
 		}
 
 		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" || req.HashTx == "" || req.MyID == "" || req.Another == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrAlgNameEscrowHashRequired))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("alg, name, escrow_address, hash_tx, my_id and another_id are required"))
 			return
 		}
 
@@ -66,65 +65,61 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
 		another := strings.ReplaceAll(req.Another, "-", "")[:32]
 
-		// Create encrypted storage using server's storage
-		stor, err := storage.NewEncryptedStorage(s.stor, s.storagePass)
+		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCreateStorage, err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create encrypted storage: %v", err))
 			return
 		}
 
-		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
-			s.logger.Error("Failed to setup network", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
+			c.logger.Error("Failed to setup network", "error", err)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
 			return
 		}
 
-		// send incomplete signature
 		switch alg {
 		case "ecdsa":
-			// getting config and presign
 			config := mpccmp.EmptyConfig()
 			data, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetConfig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
 			if err := cbor.Unmarshal(data, config); err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToUnmarshalConfig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
 			}
 
 			presign := mpccmp.EmptyPreSign()
-			data, err = stor.Get(context.Background(), name+"/"+escrowAddress+"/presign-ecdsa") // Fixed key
+			data, err = stor.Get(context.Background(), name+"/"+escrowAddress+"/presign-ecdsa")
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetPresign, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get presign: %v", err))
 				return
 			}
 			if err := cbor.Unmarshal(data, presign); err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToUnmarshalPresign, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal presign: %v", err))
 				return
 			}
 
-			// getting incomplete signature our withrawal transaction
 			pl := pool.NewPool(0)
 			defer pl.TearDown()
 
 			hashB, err := hex.DecodeString(hashTxWithdrawal)
 			if err != nil {
-				respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidHashFormat, err))
+				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid hash format: %v", err))
 				return
 			}
 
 			incsig, err := mpccmp.CMPPreSignOnlineInc(config, presign, hashB, pl)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCreateIncSig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create incomplete signature: %v", err))
 				return
 			}
 
 			incsigHex, err := mpccmp.MsgToHex(incsig)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToConvertSigToHex, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to convert signature to hex: %v", err))
 				return
 			}
 
@@ -136,11 +131,10 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 				HashTx: hashTxWithdrawal,
 			}
 
-			// send incsig and hash of the withdrawal transaction
 			msg := &protocol.Message{}
 			msg.Data, err = json.Marshal(tx)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToMarshalMessage, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to marshal message: %v", err))
 				return
 			}
 			net.Send(msg)
@@ -152,28 +146,26 @@ func (s *Server) sendWithdrawalTx() http.HandlerFunc {
 			respondOk(w, response)
 
 		case "frost":
-			// TODO: Implementation for FROST
-			respondError(w, http.StatusNotImplemented, errors.New(ErrFrostNotImplemented))
+			respondError(w, http.StatusNotImplemented, errors.New("FROST algorithm not implemented yet"))
 			return
 
 		default:
-			respondError(w, http.StatusBadRequest, errors.New(ErrUnknownAlgorithm))
+			respondError(w, http.StatusBadRequest, errors.New("unknown alg(frost or ecdsa)"))
 			return
 		}
 	}
 }
 
-// Command accept the own withdrawal transaction with our incomplete signature
-func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
+func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req AcceptWithdrawalTxRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %w", err))
 			return
 		}
 
 		if req.Algorithm == "" || req.Name == "" || req.EscrowAddress == "" || req.MyID == "" || req.Another == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrAlgNameEscrowRequired))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("alg, name and escrow_address are required"))
 			return
 		}
 
@@ -183,22 +175,19 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
 		another := strings.ReplaceAll(req.Another, "-", "")[:32]
 
-		// Create encrypted storage using server's storage
-		pass := "default_pass" // This should come from server config
-		stor, err := storage.NewEncryptedStorage(s.stor, pass)
+		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCreateStorage, err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create encrypted storage: %v", err))
 			return
 		}
 
-		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
-			s.logger.Error("Failed to setup network", "error", err)
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
+			c.logger.Error("Failed to setup network", "error", err)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
 			return
 		}
 
-		// accept incomplete signature and sign it
 		switch alg {
 		case "ecdsa":
 			msg := <-net.Next()
@@ -209,43 +198,41 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 			}{}
 
 			if err := json.Unmarshal(msg.Data, &tx); err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToUnmarshalMsg, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal message: %v", err))
 				return
 			}
 
-			// getting config and presign
 			config := mpccmp.EmptyConfig()
 			data, err := stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetConfig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
 			if err := cbor.Unmarshal(data, config); err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToUnmarshalConfig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
 			}
 
 			presign := mpccmp.EmptyPreSign()
-			data, err = stor.Get(context.Background(), name+"/"+address+"/presign-ecdsa") // Fixed key
+			data, err = stor.Get(context.Background(), name+"/"+address+"/presign-ecdsa")
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetPresign, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get presign: %v", err))
 				return
 			}
 			if err := cbor.Unmarshal(data, presign); err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToUnmarshalPresign, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal presign: %v", err))
 				return
 			}
 
-			// getting another complete signature of the withdrawal transaction
 			hashB, err := hex.DecodeString(tx.HashTx)
 			if err != nil {
-				respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidHashFormat, err))
+				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid hash format: %v", err))
 				return
 			}
 
 			incsig, err := mpccmp.HexToMsg(tx.IncSig)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToConvertHexToMsg, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to convert hex to message: %v", err))
 				return
 			}
 
@@ -254,13 +241,13 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 
 			sig, err := mpccmp.CMPPreSignOnlineCoSign(config, presign, hashB, incsig, pl)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCompleteSig, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to complete signature: %v", err))
 				return
 			}
 
 			sigEthereum, err := mpccmp.GetSigByte(sig)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetSigBytes, err))
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get signature bytes: %v", err))
 				return
 			}
 
@@ -275,12 +262,12 @@ func (s *Server) acceptWithdrawalTx() http.HandlerFunc {
 
 		case "frost":
 			msg := <-net.Next()
-			_ = msg // TODO: Implement FROST logic
-			respondError(w, http.StatusNotImplemented, errors.New(ErrFrostNotImplemented))
+			_ = msg
+			respondError(w, http.StatusNotImplemented, errors.New("FROST algorithm not implemented yet"))
 			return
 
 		default:
-			respondError(w, http.StatusBadRequest, errors.New(ErrUnknownAlgorithm))
+			respondError(w, http.StatusBadRequest, errors.New("unknown alg(frost or ecdsa)"))
 			return
 		}
 	}

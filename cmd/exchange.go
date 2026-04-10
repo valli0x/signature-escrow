@@ -3,14 +3,12 @@ package cmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -18,52 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"github.com/valli0x/signature-escrow/escrowbox"
-	"github.com/valli0x/signature-escrow/storage"
 )
-
-// Command for starting escrow server.
-// Escrow server checks signature from participant
-func StartEscrowServer() *cobra.Command {
-	var (
-		address string
-	)
-
-	cmd := &cobra.Command{
-		Use:          "server",
-		Short:        "Escrow agent",
-		Args:         cobra.ExactArgs(0),
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-				Level: slog.LevelDebug,
-			}))
-
-			logger.Info("create storage...")
-			fileStor, err := storage.NewFileStorage(env.StorageConfig, logger.With("component", "storage"))
-			if err != nil {
-				return err
-			}
-			stor, err := storage.NewEncryptedStorage(fileStor, storPass)
-			if err != nil {
-				return err
-			}
-
-			logger.Info("configuration server")
-			server := escrowbox.NewServer(&escrowbox.SrvConfig{
-				Addr: address,
-				Stor: stor,
-			})
-
-			server.Run(context.Background())
-			return nil
-		},
-	}
-
-	cmd.PersistentFlags().StringVar(&address, "address", "localhost:8282", "server address")
-
-	return cmd
-}
 
 func ExchangeSignature() *cobra.Command {
 	var (
@@ -80,12 +33,9 @@ func ExchangeSignature() *cobra.Command {
 				return
 			}
 
-			// TODO: Remove this
-			// ids setup
 			myid := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
 			fmt.Printf("your ID: %s\n", myid)
 
-			// another of participant ID
 			another, err := readID()
 			if err != nil {
 				return err
@@ -181,7 +131,9 @@ func PostEscrow(addr string, postData map[string]string) ([]byte, error) {
 		return nil, err
 	}
 
-	answer := &answer{}
+	answer := &struct {
+		Signature string `json:"signature"`
+	}{}
 	if err := json.NewDecoder(res.Body).Decode(answer); err != nil && err != io.EOF {
 		return nil, err
 	}
@@ -195,8 +147,4 @@ func PostEscrow(addr string, postData map[string]string) ([]byte, error) {
 	}
 
 	return sig, nil
-}
-
-type answer struct {
-	Signature string
 }

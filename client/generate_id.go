@@ -1,4 +1,4 @@
-package keyserver
+package client
 
 import (
 	"net/http"
@@ -12,12 +12,9 @@ type IDGenerateResponse struct {
 	Another string `json:"another_id"`
 }
 
-func (s *Server) generateIDs() http.HandlerFunc {
+func (c *Client) generateIDs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Generate my ID
 		myid := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
-
-		// Generate another participant ID
 		another := strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
 
 		response := &IDGenerateResponse{

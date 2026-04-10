@@ -33,8 +33,8 @@ func init() {
 	})
 
 	rootCmd.AddCommand(
-		StartKeyServer(),
-		StartEscrowServer(),
+		StartServer(),
+		StartClient(),
 		StartCommunicationServer(),
 		ExchangeSignature(),
 	)

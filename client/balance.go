@@ -1,4 +1,4 @@
-package keyserver
+package client
 
 import (
 	"context"
@@ -45,16 +45,16 @@ type BalanceWaitResponse struct {
 	TimedOut     bool   `json:"timed_out"`
 }
 
-func (s *Server) checkBalance() http.HandlerFunc {
+func (c *Client) checkBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceCheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %w", err))
 			return
 		}
 
 		if req.Network == "" || req.Address == "" || req.Expected <= 0 {
-			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkAddressExpectedRequired))
+			respondError(w, http.StatusBadRequest, errors.New("network, address and expected amount are required"))
 			return
 		}
 
@@ -65,16 +65,16 @@ func (s *Server) checkBalance() http.HandlerFunc {
 
 		switch network {
 		case "ethereum", "eth":
-			response, err = s.checkEthereumBalance(req)
+			response, err = c.checkEthereumBalance(req)
 		case "bitcoin", "btc":
-			response, err = s.checkBitcoinBalance(req)
+			response, err = c.checkBitcoinBalance(req)
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
 			return
 		}
 
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToCheckBalance, err))
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to check balance: %v", err))
 			return
 		}
 
@@ -82,7 +82,7 @@ func (s *Server) checkBalance() http.HandlerFunc {
 	}
 }
 
-func (s *Server) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResponse, error) {
+func (c *Client) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResponse, error) {
 	response := BalanceCheckResponse{
 		Network:  req.Network,
 		Address:  req.Address,
@@ -93,7 +93,7 @@ func (s *Server) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResp
 		return response, fmt.Errorf("invalid Ethereum address: %s", req.Address)
 	}
 
-	rpcURL := s.env.EthereumRPC
+	rpcURL := c.env.EthereumRPC
 	if rpcURL == "" {
 		rpcURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
 	}
@@ -120,7 +120,7 @@ func (s *Server) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResp
 	return response, nil
 }
 
-func (s *Server) checkBitcoinBalance(req BalanceCheckRequest) (BalanceCheckResponse, error) {
+func (c *Client) checkBitcoinBalance(req BalanceCheckRequest) (BalanceCheckResponse, error) {
 	response := BalanceCheckResponse{
 		Network:  req.Network,
 		Address:  req.Address,
@@ -132,7 +132,7 @@ func (s *Server) checkBitcoinBalance(req BalanceCheckRequest) (BalanceCheckRespo
 		return response, fmt.Errorf("invalid Bitcoin address: %s", req.Address)
 	}
 
-	apiToken := s.env.BlockCypherToken
+	apiToken := c.env.BlockCypherToken
 	btcAPI := gobcy.API{
 		Token: apiToken,
 		Coin:  "btc",
@@ -167,21 +167,21 @@ func (s *Server) checkBitcoinBalance(req BalanceCheckRequest) (BalanceCheckRespo
 	return response, nil
 }
 
-func (s *Server) waitForBalance() http.HandlerFunc {
+func (c *Client) waitForBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceWaitRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrInvalidRequestBody, err))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request body: %w", err))
 			return
 		}
 
 		if req.Network == "" || req.Address == "" || req.Expected <= 0 {
-			respondError(w, http.StatusBadRequest, errors.New(ErrNetworkAddressExpectedRequired))
+			respondError(w, http.StatusBadRequest, errors.New("network, address and expected amount are required"))
 			return
 		}
 
 		if req.TimeoutSec <= 0 {
-			req.TimeoutSec = 300 // default 5 minutes
+			req.TimeoutSec = 300
 		}
 
 		network := strings.ToLower(req.Network)
@@ -194,19 +194,16 @@ func (s *Server) waitForBalance() http.HandlerFunc {
 
 		switch network {
 		case "ethereum", "eth":
-			response, err = s.waitForEthereumBalance(ctx, req)
-			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToWaitForEthereumBalance, err))
-				return
-			}
+			response, err = c.waitForEthereumBalance(ctx, req)
 		case "bitcoin", "btc":
-			response, err = s.waitForBitcoinBalance(ctx, req)
-			if err != nil {
-				respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToWaitForBitcoinBalance, err))
-				return
-			}
+			response, err = c.waitForBitcoinBalance(ctx, req)
 		default:
-			respondError(w, http.StatusBadRequest, fmt.Errorf(ErrUnsupportedNetwork, req.Network))
+			respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported network: %s", req.Network))
+			return
+		}
+
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err)
 			return
 		}
 
@@ -214,7 +211,7 @@ func (s *Server) waitForBalance() http.HandlerFunc {
 	}
 }
 
-func (s *Server) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequest) (BalanceWaitResponse, error) {
+func (c *Client) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequest) (BalanceWaitResponse, error) {
 	response := BalanceWaitResponse{
 		Network:  req.Network,
 		Address:  req.Address,
@@ -225,19 +222,19 @@ func (s *Server) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequ
 		return response, fmt.Errorf("invalid Ethereum address: %s", req.Address)
 	}
 
-	rpcURL := s.env.EthereumRPC
+	rpcURL := c.env.EthereumRPC
 	if rpcURL == "" {
 		rpcURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
 	}
 
-	client, err := ethclient.Dial(rpcURL)
+	ethClient, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		return response, fmt.Errorf("failed to connect to Ethereum client: %v", err)
 	}
-	defer client.Close()
+	defer ethClient.Close()
 
 	addr := common.HexToAddress(req.Address)
-	ticker := time.NewTicker(12 * time.Second) // Ethereum block time
+	ticker := time.NewTicker(12 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -246,9 +243,9 @@ func (s *Server) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequ
 			response.TimedOut = true
 			return response, nil
 		case <-ticker.C:
-			balance, err := client.BalanceAt(ctx, addr, nil)
+			balance, err := ethClient.BalanceAt(ctx, addr, nil)
 			if err != nil {
-				s.logger.Error("Failed to get Ethereum balance", "error", err)
+				c.logger.Error("Failed to get Ethereum balance", "error", err)
 				continue
 			}
 
@@ -263,7 +260,7 @@ func (s *Server) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequ
 	}
 }
 
-func (s *Server) waitForBitcoinBalance(ctx context.Context, req BalanceWaitRequest) (BalanceWaitResponse, error) {
+func (c *Client) waitForBitcoinBalance(ctx context.Context, req BalanceWaitRequest) (BalanceWaitResponse, error) {
 	response := BalanceWaitResponse{
 		Network:  req.Network,
 		Address:  req.Address,
@@ -275,14 +272,14 @@ func (s *Server) waitForBitcoinBalance(ctx context.Context, req BalanceWaitReque
 		return response, fmt.Errorf("invalid Bitcoin address: %s", req.Address)
 	}
 
-	apiToken := s.env.BlockCypherToken
+	apiToken := c.env.BlockCypherToken
 	btcAPI := gobcy.API{
 		Token: apiToken,
 		Coin:  "btc",
 		Chain: "main",
 	}
 
-	ticker := time.NewTicker(10 * time.Minute) // Bitcoin block time
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -293,7 +290,7 @@ func (s *Server) waitForBitcoinBalance(ctx context.Context, req BalanceWaitReque
 		case <-ticker.C:
 			wallet, err := btcAPI.GetAddrBal(req.Address, nil)
 			if err != nil {
-				s.logger.Error("Failed to get Bitcoin balance", "error", err)
+				c.logger.Error("Failed to get Bitcoin balance", "error", err)
 				continue
 			}
 

@@ -1,4 +1,4 @@
-package keyserver
+package client
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/valli0x/signature-escrow/auth"
 	"github.com/valli0x/signature-escrow/config"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
@@ -23,7 +22,7 @@ const (
 	maxHeaderBytes = 1024 * 1024
 )
 
-type Server struct {
+type Client struct {
 	addr        string
 	srv         *http.Server
 	stor        storage.Storage
@@ -31,21 +30,18 @@ type Server struct {
 	env         *config.Env
 	storagePass string
 	Conn        *grpc.ClientConn
-	jwtSecret   []byte
-	nonceStore  *auth.NonceStore
 }
 
-type ServerConfig struct {
+type ClientConfig struct {
 	Addr        string
 	Stor        storage.Storage
 	Logger      *slog.Logger
 	Env         *config.Env
 	StoragePass string
 	Conn        *grpc.ClientConn
-	JWTSecret   []byte
 }
 
-func NewServer(cfg *ServerConfig) *Server {
+func NewClient(cfg *ClientConfig) *Client {
 	httpServer := &http.Server{
 		MaxHeaderBytes: maxHeaderBytes,
 		IdleTimeout:    idleTimeout * time.Second,
@@ -53,7 +49,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		WriteTimeout:   timeoutSeconds * time.Second,
 	}
 
-	s := &Server{
+	c := &Client{
 		srv:         httpServer,
 		addr:        cfg.Addr,
 		stor:        cfg.Stor,
@@ -61,19 +57,17 @@ func NewServer(cfg *ServerConfig) *Server {
 		env:         cfg.Env,
 		storagePass: cfg.StoragePass,
 		Conn:        cfg.Conn,
-		jwtSecret:   cfg.JWTSecret,
-		nonceStore:  auth.NewNonceStore(),
 	}
 
-	s.srv.Handler = s.routes()
+	c.srv.Handler = c.routes()
 
-	return s
+	return c
 }
 
-func (s *Server) Run(ctx context.Context) {
-	listener, err := net.Listen(ipv4, s.addr)
+func (c *Client) Run(ctx context.Context) {
+	listener, err := net.Listen(ipv4, c.addr)
 	if err != nil {
-		s.logger.Error("can't listen on address, server quitting", "addr", s.addr, "error", err)
+		c.logger.Error("can't listen on address, client quitting", "addr", c.addr, "error", err)
 		return
 	}
 
@@ -84,19 +78,19 @@ func (s *Server) Run(ctx context.Context) {
 		defer wg.Done()
 		<-ctx.Done()
 
-		if err := s.srv.Shutdown(context.Background()); err != nil {
-			s.logger.Error("HTTP server shutdown error", "error", err)
+		if err := c.srv.Shutdown(context.Background()); err != nil {
+			c.logger.Error("HTTP server shutdown error", "error", err)
 		}
 	}(wg)
 
-	s.logger.Info("key server listening", "addr", s.addr)
-	if err := s.srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+	c.logger.Info("client server listening", "addr", c.addr)
+	if err := c.srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		wg.Done()
-		s.logger.Error("unexpected HTTP server serve error", "error", err)
+		c.logger.Error("unexpected HTTP server serve error", "error", err)
 	}
 
 	wg.Wait()
-	s.logger.Info("key server off")
+	c.logger.Info("client server off")
 }
 
 func respondOk(w http.ResponseWriter, body interface{}) {

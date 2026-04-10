@@ -9,21 +9,20 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/valli0x/signature-escrow/keyserver"
+	"github.com/valli0x/signature-escrow/client"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func StartKeyServer() *cobra.Command {
+func StartClient() *cobra.Command {
 	var (
-		addr      string
-		jwtSecret string
+		addr string
 	)
 
 	cmd := &cobra.Command{
-		Use:          "keyserver",
-		Short:        "Start key generation server",
+		Use:          "client",
+		Short:        "Start local client server (keygen, balance, tx, signing)",
 		Args:         cobra.ExactArgs(0),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -31,7 +30,6 @@ func StartKeyServer() *cobra.Command {
 				Level: slog.LevelDebug,
 			}))
 
-			// Storage setup
 			logger.Debug("create storage...")
 			pass, storconf := storPass, env.StorageConfig
 
@@ -44,30 +42,25 @@ func StartKeyServer() *cobra.Command {
 				return err
 			}
 
-			// Network setup (connect to communication gRPC server)
 			conn, err := grpc.NewClient(env.Communication, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				return err
 			}
 
-			// Server configuration
-			config := &keyserver.ServerConfig{
+			config := &client.ClientConfig{
 				Addr:        addr,
 				Stor:        stor,
 				Logger:      logger,
 				Env:         env,
 				StoragePass: pass,
 				Conn:        conn,
-				JWTSecret:   []byte(jwtSecret),
 			}
 
-			server := keyserver.NewServer(config)
+			c := client.NewClient(config)
 
-			// Setup context for graceful shutdown
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Handle signals for graceful shutdown
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -77,15 +70,14 @@ func StartKeyServer() *cobra.Command {
 				cancel()
 			}()
 
-			fmt.Printf("Starting key generation server on %s\n", addr)
-			server.Run(ctx)
+			fmt.Printf("Starting client server on %s\n", addr)
+			c.Run(ctx)
 
 			return nil
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&addr, "addr", ":8080", "server listen address")
-	cmd.PersistentFlags().StringVar(&jwtSecret, "jwt-secret", "", "secret key for JWT token signing")
+	cmd.PersistentFlags().StringVar(&addr, "addr", ":8080", "client listen address")
 
 	return cmd
 }
