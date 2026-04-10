@@ -42,7 +42,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 		// Validate and format IDs
 		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
 		another := strings.ReplaceAll(req.Another, "-", "")[:32]
-		signers := party.IDSlice{party.ID(myid), party.ID(another)}
+		signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
 		// Setup network connection
 		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
@@ -66,8 +66,16 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
+		// Setup new network connection for presign
+		net2, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)
+		if err != nil {
+			s.logger.Error("Failed to setup network for presign", "error", err)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrNetworkSetupFailed, err))
+			return
+		}
+
 		// Generate presignature
-		presignature, err := mpccmp.CMPPreSign(configETH, signers, net, pl)
+		presignature, err := mpccmp.CMPPreSign(configETH, signers, net2, pl)
 		if err != nil {
 			s.logger.Error("ECDSA presign failed", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrECDSAPresignFailed, err))
@@ -81,7 +89,7 @@ func (s *Server) keygenECDSA() http.HandlerFunc {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf(ErrFailedToGetAddress, err))
 			return
 		}
-
+		
 		// Get public key (for response)
 		pubKeyData, err := mpccmp.GetPublicKeyByte(configETH)
 		if err != nil {

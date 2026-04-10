@@ -18,6 +18,7 @@ func NewNetwork() (*Network, chan<- *protocol.Message) {
 	accept := make(chan *protocol.Message, 4)
 	return &Network{
 		accept: accept,
+		done:   make(chan struct{}),
 	}, accept
 }
 

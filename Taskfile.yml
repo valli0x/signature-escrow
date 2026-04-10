@@ -1,0 +1,25 @@
+version: '3'
+
+vars:
+  CONFIG: ./config/config.yml
+  PASS: test123
+
+tasks:
+  nats:
+    desc: Start NATS server
+    cmds:
+      - nats-server -p 4222
+
+  communication:
+    desc: Start communication gRPC server
+    cmds:
+      - go run main.go communication --port :6379 --nats nats://localhost:4222 --config {{.CONFIG}} --pass {{.PASS}}
+
+  keyserver:
+    desc: Start keyserver HTTP API
+    cmds:
+      - go run main.go keyserver --addr :8080 --config {{.CONFIG}} --pass {{.PASS}}
+
+  infra:
+    desc: Start all infrastructure (NATS + communication + keyserver)
+    deps: [nats, communication, keyserver]

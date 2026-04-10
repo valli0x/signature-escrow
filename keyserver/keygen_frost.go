@@ -34,7 +34,7 @@ func (s *Server) keygenFROST() http.HandlerFunc {
 		// Validate and format IDs
 		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
 		another := strings.ReplaceAll(req.Another, "-", "")[:32]
-		signers := party.IDSlice{party.ID(myid), party.ID(another)}
+		signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
 		// Setup network connection
 		net, err := network.NewClient(s.env.Communication, myid, another, s.logger.With("component", "network"), s.Conn)

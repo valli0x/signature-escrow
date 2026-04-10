@@ -21,6 +21,8 @@ type client struct {
 	logger       *slog.Logger
 	mtx          sync.Mutex
 	done         chan struct{}
+	ready        chan struct{}
+	closed       bool
 }
 
 func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.ClientConn) (*client, error) {
@@ -31,8 +33,13 @@ func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.Cli
 		accept:  accept,
 		send:    send,
 		logger:  logger,
+		out:     make(chan *protocol.Message, 100),
+		done:    make(chan struct{}),
+		ready:   make(chan struct{}),
 	}
 	go client.receiving()
+	// Wait for subscription to be established before returning
+	<-client.ready
 	return client, nil
 }
 
@@ -40,7 +47,11 @@ func (c *client) receiving() {
 	stream, err := c.grpc.Next(context.Background(), &pb.NextReq{Name: c.accept})
 	if err != nil {
 		c.logger.Error("could not start Next stream", "error", err)
+		close(c.ready)
+		return
 	}
+	c.logger.Info("subscription ready", "subject", c.accept)
+	close(c.ready)
 
 	for {
 		nextRes, err := stream.Recv()
@@ -92,8 +103,10 @@ func (c *client) Done() chan struct{} {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	c.conn.Close()
-	close(c.done)
+	if !c.closed {
+		c.closed = true
+		close(c.done)
+	}
 
 	return c.done
 }

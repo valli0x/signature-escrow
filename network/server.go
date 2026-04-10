@@ -99,14 +99,19 @@ func (s *server) Next(req *pb.NextReq, stream pb.Exchange_NextServer) error {
 		return errors.New("invalid name")
 	}
 
-	if _, err := s.nc.Subscribe(req.Name, func(m *nats.Msg) {
+	sub, err := s.nc.Subscribe(req.Name, func(m *nats.Msg) {
 		if err := stream.Send(&pb.NextRes{
 			Msgbody: string(m.Data),
 		}); err != nil {
 			fmt.Println("error with nats message handling", err)
 		}
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
+	defer sub.Unsubscribe()
+
+	// Block until client disconnects
+	<-stream.Context().Done()
 	return nil
 }
