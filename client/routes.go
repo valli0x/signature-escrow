@@ -18,9 +18,13 @@ func (c *Client) routes() *chi.Mux {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/keygen", func(r chi.Router) {
-			r.Post("/generate-ids", c.generateIDs())
 			r.Post("/ecdsa", c.keygenECDSA())
 			r.Post("/frost", c.keygenFROST())
+		})
+
+		r.Route("/accounts", func(r chi.Router) {
+			r.Get("/list", c.listAccounts())
+			r.Post("/get", c.getAccount())
 		})
 
 		r.Route("/balance", func(r chi.Router) {

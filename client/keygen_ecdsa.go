@@ -14,35 +14,51 @@ import (
 	"github.com/valli0x/signature-escrow/network"
 )
 
-type KeygenRequest struct {
-	Name    string `json:"name"`
-	MyID    string `json:"my_id"`
-	Another string `json:"another_id"`
+type KeygenECDSARequest struct {
+	SessionID string `json:"session_id"`
+	MyID      string `json:"my_id"`
+	Another   string `json:"another_id"`
+	Network   string `json:"network"`
+	Index     int    `json:"index"`
 }
 
 type KeygenECDSAResponse struct {
 	PublicKey string `json:"public_key"`
 	Address   string `json:"address"`
+	SessionID string `json:"session_id"`
+	Network   string `json:"network"`
+	Index     int    `json:"index"`
 }
 
 func (c *Client) keygenECDSA() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req KeygenRequest
+		var req KeygenECDSARequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return
 		}
 
-		if req.Name == "" || req.MyID == "" || req.Another == "" {
-			respondError(w, http.StatusBadRequest, errors.New("name, my_id, and another_id are required"))
+		if req.SessionID == "" || req.MyID == "" || req.Another == "" {
+			respondError(w, http.StatusBadRequest, errors.New("session_id, my_id, and another_id are required"))
 			return
+		}
+
+		if req.Network == "" {
+			req.Network = "eth"
+		}
+		if req.Index <= 0 {
+			req.Index = 1
 		}
 
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 		signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
-		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
+		// NATS channels prefixed with session_id for isolation
+		acceptCh := req.SessionID + "/" + myid
+		sendCh := req.SessionID + "/" + another
+
+		net, err := network.NewClient(c.env.Communication, acceptCh, sendCh, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
@@ -52,7 +68,7 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 		pl := pool.NewPool(0)
 		defer pl.TearDown()
 
-		c.logger.Info("Starting ECDSA keygen", "name", req.Name, "myid", myid)
+		c.logger.Info("Starting ECDSA keygen", "session", req.SessionID, "myid", myid, "network", req.Network, "index", req.Index)
 
 		configETH, err := mpccmp.CMPKeygen(party.ID(myid), signers, 1, net, pl)
 		if err != nil {
@@ -61,7 +77,8 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		net2, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
+		// Presign with new connection (same session prefix)
+		net2, err := network.NewClient(c.env.Communication, acceptCh, sendCh, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network for presign", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
@@ -89,6 +106,9 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
+		// Save locally: accounts/{network}/{index}/conf-ecdsa
+		storageBase := fmt.Sprintf("accounts/%s/%d", req.Network, req.Index)
+
 		kb, err := configETH.MarshalBinary()
 		if err != nil {
 			c.logger.Error("Failed to marshal ECDSA config", "error", err)
@@ -103,26 +123,39 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		keyConfig := req.Name + "/" + address + "/conf-ecdsa"
-		if err := c.stor.Put(context.Background(), keyConfig, kb); err != nil {
+		if err := c.stor.Put(context.Background(), storageBase+"/conf-ecdsa", kb); err != nil {
 			c.logger.Error("Failed to save ECDSA config", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save config: %w", err))
 			return
 		}
 
-		preSignConfig := req.Name + "/" + address + "/presig-ecdsa"
-		if err := c.stor.Put(context.Background(), preSignConfig, preSignB); err != nil {
+		if err := c.stor.Put(context.Background(), storageBase+"/presig-ecdsa", preSignB); err != nil {
 			c.logger.Error("Failed to save presignature", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save presign: %w", err))
 			return
 		}
 
-		response := KeygenECDSAResponse{
+		// Save account metadata
+		meta := AccountMeta{
+			Network:   req.Network,
+			Index:     req.Index,
+			Address:   address,
+			PublicKey: fmt.Sprintf("%x", pubKeyData),
+			PairMyID:  myid,
+			PairOther: another,
+			SessionID: req.SessionID,
+		}
+		metaB, _ := cbor.Marshal(meta)
+		c.stor.Put(context.Background(), storageBase+"/meta", metaB)
+
+		c.logger.Info("ECDSA keygen completed", "address", address, "network", req.Network, "index", req.Index)
+
+		respondOk(w, KeygenECDSAResponse{
 			PublicKey: fmt.Sprintf("%x", pubKeyData),
 			Address:   address,
-		}
-
-		c.logger.Info("ECDSA keygen completed", "address", address)
-		respondOk(w, response)
+			SessionID: req.SessionID,
+			Network:   req.Network,
+			Index:     req.Index,
+		})
 	}
 }

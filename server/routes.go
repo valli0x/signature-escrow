@@ -34,6 +34,12 @@ func (s *Server) routes() *chi.Mux {
 				r.Get("/pending", s.pairPending())
 			})
 
+			r.Route("/mailbox", func(r chi.Router) {
+				r.Post("/send", s.mailboxSend())
+				r.Get("/pending", s.mailboxPending())
+				r.Post("/ack", s.mailboxAck())
+			})
+
 			r.Post("/escrow", s.escrow())
 			r.Post("/timebox", s.timebox())
 		})

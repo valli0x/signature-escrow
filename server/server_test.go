@@ -357,6 +357,109 @@ func TestPairingFlow(t *testing.T) {
 	t.Log("unauthenticated pair create correctly rejected")
 }
 
+func TestMailboxFlow(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+
+	keyA, _ := crypto.GenerateKey()
+	keyB, _ := crypto.GenerateKey()
+	addrA := crypto.PubkeyToAddress(keyA.PublicKey).Hex()
+	addrB := crypto.PubkeyToAddress(keyB.PublicKey).Hex()
+
+	tokenA := authenticate(t, ts.URL, keyA, addrA)
+	tokenB := authenticate(t, ts.URL, keyB, addrB)
+
+	// Create pair first
+	resp, result, _ := postJSON(ts.URL+"/v1/pair/create", map[string]string{
+		"partner": addrB,
+	}, tokenA)
+	if resp.StatusCode != 200 {
+		t.Fatalf("pair create failed: %v", result)
+	}
+	pairID := result["id"].(string)
+
+	// Accept pair
+	postJSON(ts.URL+"/v1/pair/accept", map[string]string{"id": pairID}, tokenB)
+
+	// Step 1: A sends keygen request to B via mailbox
+	resp, result, err := postJSON(ts.URL+"/v1/mailbox/send", map[string]interface{}{
+		"to":      addrB,
+		"pair_id": pairID,
+		"type":    "keygen_request",
+		"body":    map[string]interface{}{"session_id": "sess123", "network": "eth", "index": 1},
+	}, tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("mailbox send: expected 200, got %d: %v", resp.StatusCode, result)
+	}
+	msgID := result["id"].(string)
+	t.Logf("message sent: id=%s", msgID)
+
+	// Step 2: B checks pending messages
+	resp, result, err = getJSON(ts.URL+"/v1/mailbox/pending", tokenB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("mailbox pending: expected 200, got %d", resp.StatusCode)
+	}
+	messages := result["messages"].([]interface{})
+	if len(messages) != 1 {
+		t.Fatalf("B should have 1 message, got %d", len(messages))
+	}
+	msg := messages[0].(map[string]interface{})
+	t.Logf("B received: type=%s from=%s", msg["type"], msg["from"])
+
+	if msg["type"] != "keygen_request" {
+		t.Fatalf("expected keygen_request, got %s", msg["type"])
+	}
+
+	// Step 3: A should see nothing in their inbox
+	resp, result, _ = getJSON(ts.URL+"/v1/mailbox/pending", tokenA)
+	aMessages := result["messages"].([]interface{})
+	if len(aMessages) != 0 {
+		t.Fatalf("A should have 0 messages, got %d", len(aMessages))
+	}
+	t.Log("A inbox correctly empty")
+
+	// Step 4: Non-pair member cannot send to this pair
+	keyC, _ := crypto.GenerateKey()
+	addrC := crypto.PubkeyToAddress(keyC.PublicKey).Hex()
+	tokenC := authenticate(t, ts.URL, keyC, addrC)
+
+	resp, _, _ = postJSON(ts.URL+"/v1/mailbox/send", map[string]interface{}{
+		"to":      addrB,
+		"pair_id": pairID,
+		"type":    "keygen_request",
+		"body":    map[string]interface{}{},
+	}, tokenC)
+	if resp.StatusCode != 403 {
+		t.Fatalf("outsider send: expected 403, got %d", resp.StatusCode)
+	}
+	t.Log("outsider correctly rejected")
+
+	// Step 5: B acknowledges the message
+	resp, _, err = postJSON(ts.URL+"/v1/mailbox/ack", map[string]string{
+		"id": msgID,
+	}, tokenB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 204 {
+		t.Fatalf("mailbox ack: expected 204, got %d", resp.StatusCode)
+	}
+
+	// Verify inbox is now empty
+	resp, result, _ = getJSON(ts.URL+"/v1/mailbox/pending", tokenB)
+	messages = result["messages"].([]interface{})
+	if len(messages) != 0 {
+		t.Fatalf("B should have 0 messages after ack, got %d", len(messages))
+	}
+	t.Log("message acknowledged and removed")
+}
+
 func authenticate(t *testing.T, baseURL string, key *ecdsa.PrivateKey, address string) string {
 	t.Helper()
 
