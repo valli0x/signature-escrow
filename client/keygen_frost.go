@@ -40,8 +40,25 @@ func (c *Client) keygenFROST() http.HandlerFunc {
 			return
 		}
 
+		if err := validateSessionID(req.SessionID); err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := validateETHAddress(req.MyID); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("my_id: %w", err))
+			return
+		}
+		if err := validateETHAddress(req.Another); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("another_id: %w", err))
+			return
+		}
+
 		if req.Index <= 0 {
 			req.Index = 1
+		}
+		if err := validateIndex(req.Index); err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
 		}
 
 		myid := normalizePartyID(req.MyID)
