@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	"github.com/valli0x/signature-escrow/client"
 	"github.com/valli0x/signature-escrow/config"
 	"github.com/valli0x/signature-escrow/network"
@@ -18,6 +19,7 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
 	env := config.LoadFromEnv()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
