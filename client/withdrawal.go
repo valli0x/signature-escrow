@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
@@ -62,8 +61,8 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 		name := req.Name
 		escrowAddress := req.EscrowAddress
 		hashTxWithdrawal := req.HashTx
-		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
-		another := strings.ReplaceAll(req.Another, "-", "")[:32]
+		myid := normalizePartyID(req.MyID)
+		another := normalizePartyID(req.Another)
 
 		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
 		if err != nil {
@@ -172,8 +171,8 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		alg := req.Algorithm
 		name := req.Name
 		address := req.EscrowAddress
-		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
-		another := strings.ReplaceAll(req.Another, "-", "")[:32]
+		myid := normalizePartyID(req.MyID)
+		another := normalizePartyID(req.Another)
 
 		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
 		if err != nil {

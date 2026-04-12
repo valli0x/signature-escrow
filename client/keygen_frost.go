@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
@@ -31,8 +30,8 @@ func (c *Client) keygenFROST() http.HandlerFunc {
 			return
 		}
 
-		myid := strings.ReplaceAll(req.MyID, "-", "")[:32]
-		another := strings.ReplaceAll(req.Another, "-", "")[:32]
+		myid := normalizePartyID(req.MyID)
+		another := normalizePartyID(req.Another)
 		signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
 		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)

@@ -39,6 +39,28 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(srv.routes())
 }
 
+func getJSON(url string, token string) (*http.Response, map[string]interface{}, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	data, _ := io.ReadAll(resp.Body)
+	var result map[string]interface{}
+	json.Unmarshal(data, &result)
+
+	return resp, result, nil
+}
+
 func postJSON(url string, body interface{}, token string) (*http.Response, map[string]interface{}, error) {
 	b, _ := json.Marshal(body)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(b))
@@ -210,6 +232,129 @@ func TestEscrowExchange(t *testing.T) {
 			t.Logf("escrow exchange complete, B received signature: %s", sig)
 		}
 	}
+}
+
+func TestPairingFlow(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+
+	// Two participants
+	keyA, _ := crypto.GenerateKey()
+	keyB, _ := crypto.GenerateKey()
+	addrA := crypto.PubkeyToAddress(keyA.PublicKey).Hex()
+	addrB := crypto.PubkeyToAddress(keyB.PublicKey).Hex()
+
+	tokenA := authenticate(t, ts.URL, keyA, addrA)
+	tokenB := authenticate(t, ts.URL, keyB, addrB)
+
+	// Step 1: A creates pair with B
+	resp, result, err := postJSON(ts.URL+"/v1/pair/create", map[string]string{
+		"partner": addrB,
+	}, tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("pair create: expected 200, got %d: %v", resp.StatusCode, result)
+	}
+	pairID := result["id"].(string)
+	t.Logf("pair created: id=%s initiator=%s partner=%s status=%s",
+		pairID, result["initiator"], result["partner"], result["status"])
+
+	if result["status"] != "pending" {
+		t.Fatalf("expected status pending, got %s", result["status"])
+	}
+
+	// Step 2: B sees pending pair
+	resp, result, err = getJSON(ts.URL+"/v1/pair/pending", tokenB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("pair pending: expected 200, got %d: %v", resp.StatusCode, result)
+	}
+	incoming := result["incoming"].([]interface{})
+	if len(incoming) != 1 {
+		t.Fatalf("B should have 1 incoming pair, got %d", len(incoming))
+	}
+	t.Logf("B sees incoming pair: %v", incoming[0])
+
+	// A sees outgoing
+	resp, result, err = getJSON(ts.URL+"/v1/pair/pending", tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outgoing := result["outgoing"].([]interface{})
+	if len(outgoing) != 1 {
+		t.Fatalf("A should have 1 outgoing pair, got %d", len(outgoing))
+	}
+	t.Logf("A sees outgoing pair: %v", outgoing[0])
+
+	// Step 3: A tries to accept — should fail (only partner can)
+	resp, _, err = postJSON(ts.URL+"/v1/pair/accept", map[string]string{
+		"id": pairID,
+	}, tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 403 {
+		t.Fatalf("A accept: expected 403, got %d", resp.StatusCode)
+	}
+	t.Log("A correctly cannot accept own pair")
+
+	// Step 4: B accepts
+	resp, result, err = postJSON(ts.URL+"/v1/pair/accept", map[string]string{
+		"id": pairID,
+	}, tokenB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("B accept: expected 200, got %d: %v", resp.StatusCode, result)
+	}
+	if result["status"] != "accepted" {
+		t.Fatalf("expected status accepted, got %s", result["status"])
+	}
+	t.Logf("pair accepted: id=%s status=%s", result["id"], result["status"])
+
+	// Step 5: Cannot pair with yourself
+	resp, _, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
+		"partner": addrA,
+	}, tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("self-pair: expected 400, got %d", resp.StatusCode)
+	}
+	t.Log("self-pairing correctly rejected")
+
+	// Step 6: Duplicate pair returns existing
+	resp, result, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
+		"partner": addrB,
+	}, tokenA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("duplicate pair: expected 200, got %d", resp.StatusCode)
+	}
+	if result["status"] != "accepted" {
+		t.Fatalf("duplicate should return accepted, got %s", result["status"])
+	}
+	t.Log("duplicate pair correctly returns existing")
+
+	// Step 7: Without auth — should fail
+	resp, _, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
+		"partner": addrB,
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth: expected 401, got %d", resp.StatusCode)
+	}
+	t.Log("unauthenticated pair create correctly rejected")
 }
 
 func authenticate(t *testing.T, baseURL string, key *ecdsa.PrivateKey, address string) string {

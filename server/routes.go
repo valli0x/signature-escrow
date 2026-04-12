@@ -28,6 +28,12 @@ func (s *Server) routes() *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Middleware(s.jwtSecret))
 
+			r.Route("/pair", func(r chi.Router) {
+				r.Post("/create", s.pairCreate())
+				r.Post("/accept", s.pairAccept())
+				r.Get("/pending", s.pairPending())
+			})
+
 			r.Post("/escrow", s.escrow())
 			r.Post("/timebox", s.timebox())
 		})
