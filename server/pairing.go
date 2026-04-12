@@ -63,13 +63,14 @@ type PairPendingResponse struct {
 }
 
 // pairID generates a deterministic pair ID from two addresses.
+// Uses "_" separator (not ":") for filesystem compatibility.
 func pairID(a, b string) string {
-	a = strings.ToLower(a)
-	b = strings.ToLower(b)
+	a = strings.ToLower(strings.TrimPrefix(a, "0x"))
+	b = strings.ToLower(strings.TrimPrefix(b, "0x"))
 	if a < b {
-		return a + ":" + b
+		return a + "_" + b
 	}
-	return b + ":" + a
+	return b + "_" + a
 }
 
 func storePair(stor storage.Storage, p *Pair) error {

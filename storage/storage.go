@@ -90,6 +90,9 @@ func (e *EncryptedStorage) Get(ctx context.Context, key string) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
+	if ciphertext == nil {
+		return nil, nil
+	}
 	if len(ciphertext) < e.nonceSz {
 		return nil, errors.New("ciphertext too short")
 	}
