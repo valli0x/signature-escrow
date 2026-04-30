@@ -166,11 +166,14 @@ func TestAuthFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// First escrow submission — stores flower, returns 204 No Content
-	if resp.StatusCode != 204 {
-		t.Fatalf("escrow first submit: expected 204, got %d: %v", resp.StatusCode, result)
+	// First escrow submission — stores flower, returns 200 with status=pending
+	if resp.StatusCode != 200 {
+		t.Fatalf("escrow first submit: expected 200, got %d: %v", resp.StatusCode, result)
 	}
-	t.Log("escrow first submission accepted (204)")
+	if status, _ := result["status"].(string); status != "pending" {
+		t.Fatalf("escrow first submit: expected status=pending, got %v", result)
+	}
+	t.Log("escrow first submission accepted (pending)")
 }
 
 func TestEscrowExchange(t *testing.T) {
@@ -209,12 +212,15 @@ func TestEscrowExchange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 204 {
-		t.Fatalf("A submit: expected 204, got %d: %v", resp.StatusCode, result)
+	if resp.StatusCode != 200 {
+		t.Fatalf("A submit: expected 200, got %d: %v", resp.StatusCode, result)
 	}
-	t.Log("A submitted flower")
+	if status, _ := result["status"].(string); status != "pending" {
+		t.Fatalf("A submit: expected status=pending, got %v", result)
+	}
+	t.Log("A submitted flower (pending)")
 
-	// Step 2: B submits flower
+	// Step 2: B submits flower → pollination should complete and return both signatures
 	resp, result, err = postJSON(ts.URL+"/v1/escrow", map[string]string{
 		"alg":  "ecdsa",
 		"id":   escrowID,
@@ -227,9 +233,18 @@ func TestEscrowExchange(t *testing.T) {
 	}
 	t.Logf("B submit response: status=%d body=%v", resp.StatusCode, result)
 
-	if resp.StatusCode == 200 && result != nil {
-		if sig, ok := result["signature"]; ok {
-			t.Logf("escrow exchange complete, B received signature: %s", sig)
+	// NOTE: go-ethereum's crypto.Sign produces 65-byte sigs that the
+	// multi-party-sig validator rejects (it expects the CMP/Schnorr layout).
+	// We can't fully drive the success path with these dummy keys — but
+	// when the response IS "complete", we assert it carries the partner's
+	// signature (the caller's own sig is not echoed back).
+	if resp.StatusCode == 200 {
+		if status, _ := result["status"].(string); status == "complete" {
+			sig, ok := result["signature"].(string)
+			if !ok || sig == "" {
+				t.Fatalf("expected partner signature on complete, got %v", result)
+			}
+			t.Logf("escrow exchange complete, B received partner signature: %s", sig)
 		}
 	}
 }

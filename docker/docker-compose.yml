@@ -1,0 +1,95 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: se-nats
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  communication:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: se-communication
+    environment:
+      MODE: communication
+      COMMUNICATION_ADDR: 0.0.0.0:6379
+      NATS_URL: nats://nats:4222
+    ports:
+      - "6379:6379"
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: se-server
+    environment:
+      MODE: server
+      SERVER_ADDR: 0.0.0.0:8282
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      STORAGE_PATH: /data
+      STORAGE_PASS: ${STORAGE_PASS:-}
+    ports:
+      - "8282:8282"
+    volumes:
+      - server-data:/data
+
+  client-a:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: se-client-a
+    environment:
+      MODE: client
+      CLIENT_ADDR: 0.0.0.0:8080
+      COMMUNICATION_ADDR: communication:6379
+      NATS_URL: nats://nats:4222
+      ESCROW_SERVER: server:8282
+      ETHEREUM_RPC: ${ETHEREUM_RPC:-}
+      BLOCKCYPHER_TOKEN: ${BLOCKCYPHER_TOKEN:-}
+      STORAGE_PATH: /data
+      STORAGE_PASS: ${STORAGE_PASS_A:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - client-a-data:/data
+    depends_on:
+      - server
+      - communication
+
+  client-b:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: se-client-b
+    environment:
+      MODE: client
+      CLIENT_ADDR: 0.0.0.0:8080
+      COMMUNICATION_ADDR: communication:6379
+      NATS_URL: nats://nats:4222
+      ESCROW_SERVER: server:8282
+      ETHEREUM_RPC: ${ETHEREUM_RPC:-}
+      BLOCKCYPHER_TOKEN: ${BLOCKCYPHER_TOKEN:-}
+      STORAGE_PATH: /data
+      STORAGE_PASS: ${STORAGE_PASS_B:-}
+    ports:
+      - "8081:8080"
+    volumes:
+      - client-b-data:/data
+    depends_on:
+      - server
+      - communication
+
+volumes:
+  server-data:
+  client-a-data:
+  client-b-data:

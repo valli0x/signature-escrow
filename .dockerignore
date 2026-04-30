@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+data
+*.env
+!docker/.env.example
+docs
+README.md
+CLAUDE.md

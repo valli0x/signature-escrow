@@ -64,16 +64,6 @@ func (p *pollination) addFlower(f *flower) {
 	}
 }
 
-func (p *pollination) getFlower(pub []byte) *flower {
-	if p.flower1 != nil && string(p.flower1.Pub) == string(pub) {
-		return p.flower1
-	}
-	if p.flower2 != nil && string(p.flower2.Pub) == string(pub) {
-		return p.flower2
-	}
-	return nil
-}
-
 type pollinationMarshal struct {
 	Flower1, Flower2 *flower
 }
@@ -183,7 +173,7 @@ func (s *Server) escrow() http.HandlerFunc {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
 				return
 			}
-			respondOk(w, nil)
+			respondOk(w, map[string]any{"status": "pending"})
 			return
 		}
 
@@ -200,15 +190,22 @@ func (s *Server) escrow() http.HandlerFunc {
 		}
 
 		if pollinated {
-			if fl := p.getFlower(pubB); fl != nil {
-				respondOk(w, map[string]string{
-					"signature": base64.StdEncoding.EncodeToString(fl.Sig),
-				})
-				return
+			// Каждый забирает только подпись партнёра — свою он уже знает.
+			var theirSig []byte
+			switch {
+			case string(p.flower1.Pub) == string(pubB):
+				theirSig = p.flower2.Sig
+			case string(p.flower2.Pub) == string(pubB):
+				theirSig = p.flower1.Sig
 			}
+			respondOk(w, map[string]any{
+				"status":    "complete",
+				"signature": base64.StdEncoding.EncodeToString(theirSig),
+			})
+			return
 		}
 
-		respondOk(w, nil)
+		respondOk(w, map[string]any{"status": "pending"})
 	}
 }
 

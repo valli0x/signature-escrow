@@ -13,10 +13,10 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/go-chi/chi v1.5.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
-	github.com/google/uuid v1.6.0
 	github.com/hashicorp/errwrap v1.1.0
 	github.com/hashicorp/go-secure-stdlib/permitpool v1.0.0
 	github.com/hashicorp/vault/sdk v0.18.0
+	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.34.1
 	github.com/rs/cors v1.11.1
 	github.com/taurusgroup/multi-party-sig v0.6.0-alpha-2021-09-21.0.20230505101036-a0b25d3a43cb
@@ -61,7 +61,6 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/holiman/uint256 v1.2.3 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
