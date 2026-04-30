@@ -118,47 +118,89 @@ type EscrowRequest struct {
 	Sig  string `json:"sig"`
 }
 
+const (
+	maxEscrowIDLen = 128
+	hashLen        = 32 // Keccak256 / SHA256
+	pubLenECDSA    = 33 // compressed secp256k1
+	pubLenFrost    = 32 // x-only taproot
+	maxSigLen      = 128
+)
+
+// parseEscrowRequest decodes JSON, validates fields, and returns a flower.
+// Returns a *humanError* — handler maps it to HTTP 400.
+func parseEscrowRequest(r *http.Request) (*flower, error) {
+	var req EscrowRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, fmt.Errorf("error parsing JSON")
+	}
+
+	if req.Alg == "" || req.ID == "" || req.Pub == "" || req.Hash == "" {
+		return nil, fmt.Errorf("alg, id, pub and hash are required")
+	}
+
+	alg := validation.SignaturesType(req.Alg)
+	if alg != validation.ECDSA && alg != validation.Frost {
+		return nil, fmt.Errorf("alg must be %q or %q", validation.ECDSA, validation.Frost)
+	}
+
+	if len(req.ID) > maxEscrowIDLen {
+		return nil, fmt.Errorf("id too long (max %d chars)", maxEscrowIDLen)
+	}
+
+	pub, err := hex.DecodeString(req.Pub)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pub hex: %w", err)
+	}
+	switch alg {
+	case validation.ECDSA:
+		if len(pub) != pubLenECDSA {
+			return nil, fmt.Errorf("ecdsa pub must be %d bytes (compressed secp256k1), got %d", pubLenECDSA, len(pub))
+		}
+		if pub[0] != 0x02 && pub[0] != 0x03 {
+			return nil, fmt.Errorf("ecdsa pub must start with 0x02 or 0x03, got 0x%02x", pub[0])
+		}
+	case validation.Frost:
+		if len(pub) != pubLenFrost {
+			return nil, fmt.Errorf("frost pub must be %d bytes (x-only), got %d", pubLenFrost, len(pub))
+		}
+	}
+
+	hash, err := hex.DecodeString(req.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hash hex: %w", err)
+	}
+	if len(hash) != hashLen {
+		return nil, fmt.Errorf("hash must be %d bytes, got %d", hashLen, len(hash))
+	}
+
+	var sig []byte
+	if req.Sig != "" {
+		sig, err = hex.DecodeString(req.Sig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid sig hex: %w", err)
+		}
+		if len(sig) > maxSigLen {
+			return nil, fmt.Errorf("sig too long (max %d bytes), got %d", maxSigLen, len(sig))
+		}
+	}
+
+	return &flower{
+		ID:   req.ID,
+		Alg:  alg,
+		Pub:  pub,
+		Hash: hash,
+		Sig:  sig,
+	}, nil
+}
+
 func (s *Server) escrow() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req EscrowRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("error parsing JSON"))
-			return
-		}
-
-		if req.Alg == "" || req.ID == "" || req.Pub == "" || req.Hash == "" {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("alg, id, pub and hash are required"))
-			return
-		}
-
-		pubB, err := hex.DecodeString(req.Pub)
+		f, err := parseEscrowRequest(r)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid pub hex"))
+			respondError(w, http.StatusBadRequest, err)
 			return
 		}
-
-		hashB, err := hex.DecodeString(req.Hash)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid hash hex"))
-			return
-		}
-
-		var sigB []byte
-		if req.Sig != "" {
-			sigB, err = hex.DecodeString(req.Sig)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid sig hex"))
-				return
-			}
-		}
-
-		f := &flower{
-			ID:   req.ID,
-			Alg:  validation.SignaturesType(req.Alg),
-			Pub:  pubB,
-			Hash: hashB,
-			Sig:  sigB,
-		}
+		pubB := f.Pub
 
 		p, err := getPollination(f.ID, s.stor)
 		if err != nil {
@@ -190,7 +232,6 @@ func (s *Server) escrow() http.HandlerFunc {
 		}
 
 		if pollinated {
-			// Каждый забирает только подпись партнёра — свою он уже знает.
 			var theirSig []byte
 			switch {
 			case string(p.flower1.Pub) == string(pubB):
