@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/valli0x/signature-escrow/auth"
 	"github.com/valli0x/signature-escrow/storage"
 	"github.com/valli0x/signature-escrow/validation"
 )
@@ -25,7 +27,33 @@ type timeboxEntry struct {
 	Pub       []byte
 	Hash      []byte
 	Sig       []byte
+	PairID    string // pair, к которой привязана запись (для авторизации)
 	CreatedAt time.Time
+}
+
+// pairContains возвращает true, если addr — initiator или partner пары.
+func pairContains(p *Pair, addr string) bool {
+	return strings.EqualFold(p.Initiator, addr) || strings.EqualFold(p.Partner, addr)
+}
+
+// authorizeTimeboxAccess загружает пару по pairID и проверяет, что
+// текущий вызывающий (из JWT-контекста) — один из её участников.
+func (s *Server) authorizeTimeboxAccess(r *http.Request, pairID string) (*Pair, error) {
+	if pairID == "" {
+		return nil, errors.New("pair_id is required")
+	}
+	pair, err := loadPair(s.stor, pairID)
+	if err != nil {
+		return nil, fmt.Errorf("storage error")
+	}
+	if pair == nil {
+		return nil, errors.New("pair not found")
+	}
+	caller := auth.AddressFromContext(r.Context())
+	if !pairContains(pair, caller) {
+		return nil, errors.New("caller is not a member of this pair")
+	}
+	return pair, nil
 }
 
 func timeboxKey(pub []byte) string {
@@ -82,10 +110,11 @@ func validatePub(alg validation.SignaturesType, pub []byte) error {
 // ---------- POST /v1/timebox ----------
 
 type TimeboxPostRequest struct {
-	Alg  string `json:"alg"`
-	Pub  string `json:"pub"`
-	Hash string `json:"hash"`
-	Sig  string `json:"sig"`
+	Alg    string `json:"alg"`
+	PairID string `json:"pair_id"` // обязателен: ограничивает, кто может POST/GET
+	Pub    string `json:"pub"`
+	Hash   string `json:"hash"`
+	Sig    string `json:"sig"`
 }
 
 func parseTimeboxPost(r *http.Request) (*timeboxEntry, error) {
@@ -93,8 +122,8 @@ func parseTimeboxPost(r *http.Request) (*timeboxEntry, error) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, fmt.Errorf("error parsing JSON")
 	}
-	if req.Alg == "" || req.Pub == "" || req.Hash == "" || req.Sig == "" {
-		return nil, fmt.Errorf("alg, pub, hash and sig are required")
+	if req.Alg == "" || req.PairID == "" || req.Pub == "" || req.Hash == "" || req.Sig == "" {
+		return nil, fmt.Errorf("alg, pair_id, pub, hash and sig are required")
 	}
 	alg := validation.SignaturesType(req.Alg)
 	if alg != validation.ECDSA && alg != validation.Frost {
@@ -126,6 +155,7 @@ func parseTimeboxPost(r *http.Request) (*timeboxEntry, error) {
 		Pub:       pub,
 		Hash:      hash,
 		Sig:       sig,
+		PairID:    req.PairID,
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }
@@ -135,6 +165,12 @@ func (s *Server) timeboxPost() http.HandlerFunc {
 		e, err := parseTimeboxPost(r)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		// Авторизация: только участники пары могут класть запись.
+		if _, err := s.authorizeTimeboxAccess(r, e.PairID); err != nil {
+			respondError(w, http.StatusForbidden, err)
 			return
 		}
 
@@ -155,7 +191,7 @@ func (s *Server) timeboxPost() http.HandlerFunc {
 			return
 		}
 
-		s.logger.Info("timebox stored", "pub", hex.EncodeToString(e.Pub), "available_at", e.CreatedAt.Add(timeboxDelay))
+		s.logger.Info("timebox stored", "pair_id", e.PairID, "pub", hex.EncodeToString(e.Pub), "available_at", e.CreatedAt.Add(timeboxDelay))
 
 		respondOk(w, map[string]any{
 			"status":       "stored",
@@ -201,6 +237,13 @@ func (s *Server) timeboxGet() http.HandlerFunc {
 				"has_signature": false,
 				"valid":         false,
 			})
+			return
+		}
+
+		// Авторизация: только участники пары, к которой привязана запись,
+		// могут читать timebox-подпись.
+		if _, err := s.authorizeTimeboxAccess(r, entry.PairID); err != nil {
+			respondError(w, http.StatusForbidden, err)
 			return
 		}
 

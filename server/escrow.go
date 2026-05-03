@@ -116,12 +116,6 @@ type EscrowRequest struct {
 	Pub  string `json:"pub"`
 	Hash string `json:"hash"`
 	Sig  string `json:"sig"`
-
-	// SharedPub — опционально: публичный ключ общего MPC-счёта.
-	// Когда обмен подписями успешно завершён, ассоциированная timebox-запись
-	// удаляется (стороны согласовали транзакцию вывода — резерв «через час»
-	// больше не нужен).
-	SharedPub string `json:"shared_pub,omitempty"`
 }
 
 const (
@@ -132,62 +126,50 @@ const (
 	maxSigLen      = 128
 )
 
-// parseEscrowRequest decodes JSON, validates fields, returns the flower and
-// (optionally) the shared MPC-account pubkey extracted from `shared_pub`.
-func parseEscrowRequest(r *http.Request) (*flower, []byte, error) {
+// parseEscrowRequest decodes JSON, validates fields, and returns a flower.
+func parseEscrowRequest(r *http.Request) (*flower, error) {
 	var req EscrowRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, nil, fmt.Errorf("error parsing JSON")
+		return nil, fmt.Errorf("error parsing JSON")
 	}
 
 	if req.Alg == "" || req.ID == "" || req.Pub == "" || req.Hash == "" {
-		return nil, nil, fmt.Errorf("alg, id, pub and hash are required")
+		return nil, fmt.Errorf("alg, id, pub and hash are required")
 	}
 
 	alg := validation.SignaturesType(req.Alg)
 	if alg != validation.ECDSA && alg != validation.Frost {
-		return nil, nil, fmt.Errorf("alg must be %q or %q", validation.ECDSA, validation.Frost)
+		return nil, fmt.Errorf("alg must be %q or %q", validation.ECDSA, validation.Frost)
 	}
 
 	if len(req.ID) > maxEscrowIDLen {
-		return nil, nil, fmt.Errorf("id too long (max %d chars)", maxEscrowIDLen)
+		return nil, fmt.Errorf("id too long (max %d chars)", maxEscrowIDLen)
 	}
 
 	pub, err := hex.DecodeString(req.Pub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid pub hex: %w", err)
+		return nil, fmt.Errorf("invalid pub hex: %w", err)
 	}
 	if err := validatePub(alg, pub); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	hash, err := hex.DecodeString(req.Hash)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid hash hex: %w", err)
+		return nil, fmt.Errorf("invalid hash hex: %w", err)
 	}
 	if len(hash) != hashLen {
-		return nil, nil, fmt.Errorf("hash must be %d bytes, got %d", hashLen, len(hash))
+		return nil, fmt.Errorf("hash must be %d bytes, got %d", hashLen, len(hash))
 	}
 
 	var sig []byte
 	if req.Sig != "" {
 		sig, err = hex.DecodeString(req.Sig)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid sig hex: %w", err)
+			return nil, fmt.Errorf("invalid sig hex: %w", err)
 		}
 		if len(sig) > maxSigLen {
-			return nil, nil, fmt.Errorf("sig too long (max %d bytes), got %d", maxSigLen, len(sig))
-		}
-	}
-
-	var sharedPub []byte
-	if req.SharedPub != "" {
-		sharedPub, err = hex.DecodeString(req.SharedPub)
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid shared_pub hex: %w", err)
-		}
-		if err := validatePub(alg, sharedPub); err != nil {
-			return nil, nil, fmt.Errorf("shared_pub: %w", err)
+			return nil, fmt.Errorf("sig too long (max %d bytes), got %d", maxSigLen, len(sig))
 		}
 	}
 
@@ -197,12 +179,12 @@ func parseEscrowRequest(r *http.Request) (*flower, []byte, error) {
 		Pub:  pub,
 		Hash: hash,
 		Sig:  sig,
-	}, sharedPub, nil
+	}, nil
 }
 
 func (s *Server) escrow() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		f, sharedPub, err := parseEscrowRequest(r)
+		f, err := parseEscrowRequest(r)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, err)
 			return
@@ -247,13 +229,9 @@ func (s *Server) escrow() http.HandlerFunc {
 				theirSig = p.flower1.Sig
 			}
 
-			// Стороны согласовали транзакцию вывода — резервная timebox-запись
-			// для этого общего счёта больше не нужна.
-			if len(sharedPub) > 0 {
-				if err := deleteTimebox(s.stor, sharedPub); err != nil {
-					s.logger.Warn("failed to delete timebox after pollination", "error", err)
-				}
-			}
+			// Race с timebox-выводом разрешает сама блокчейн-сеть:
+			// одна транзакция тратит UTXO/nonce, вторая отвалится как
+			// double-spend. Серверу не нужно атомарно гасить timebox.
 
 			respondOk(w, map[string]any{
 				"status":    "complete",
