@@ -112,6 +112,17 @@ func loadPair(stor storage.Storage, id string) (*Pair, error) {
 	return p, nil
 }
 
+// deletePair removes a pair and its entries from both participants' indexes.
+func deletePair(stor storage.Storage, p *Pair) error {
+	if err := removeFromIndex(stor, pairPrefix+"by-addr/"+strings.ToLower(p.Initiator), p.ID); err != nil {
+		return err
+	}
+	if err := removeFromIndex(stor, pairPrefix+"by-addr/"+strings.ToLower(p.Partner), p.ID); err != nil {
+		return err
+	}
+	return stor.Delete(context.Background(), pairPrefix+p.ID)
+}
+
 // addToIndex appends a pair ID to an address's index list.
 func addToIndex(stor storage.Storage, key, pairID string) error {
 	var ids []string
@@ -316,5 +327,47 @@ func (s *Server) pairPending() http.HandlerFunc {
 		}
 
 		respondOk(w, resp)
+	}
+}
+
+// pairDelete removes a pair from the server entirely (both participants lose
+// it). Only a member of the pair may delete it. The pair must be re-created to
+// pair again.
+func (s *Server) pairDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req PairAcceptRequest // reuses {id}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
+			return
+		}
+		if req.ID == "" {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("pair id is required"))
+			return
+		}
+
+		myAddr := auth.AddressFromContext(r.Context())
+		pair, err := loadPair(s.stor, req.ID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
+			return
+		}
+		if pair == nil {
+			// Already gone — treat as success (idempotent).
+			respondOk(w, map[string]any{"deleted": true})
+			return
+		}
+		if !strings.EqualFold(pair.Initiator, myAddr) && !strings.EqualFold(pair.Partner, myAddr) {
+			respondError(w, http.StatusForbidden, fmt.Errorf("you are not part of this pair"))
+			return
+		}
+
+		if err := deletePair(s.stor, pair); err != nil {
+			s.logger.Error("failed to delete pair", "error", err, "id", req.ID)
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to delete pair"))
+			return
+		}
+
+		s.logger.Info("pair deleted", "id", req.ID, "by", myAddr)
+		respondOk(w, map[string]any{"deleted": true})
 	}
 }

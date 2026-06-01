@@ -27,6 +27,7 @@ type Server struct {
 	logger     *slog.Logger
 	jwtSecret  []byte
 	nonceStore *auth.NonceStore
+	sessions   *sessionRegistry
 }
 
 type ServerConfig struct {
@@ -51,6 +52,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		logger:     cfg.Logger,
 		jwtSecret:  cfg.JWTSecret,
 		nonceStore: auth.NewNonceStore(),
+		sessions:   newSessionRegistry(),
 	}
 
 	s.srv.Handler = s.routes()

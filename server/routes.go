@@ -32,12 +32,18 @@ func (s *Server) routes() *chi.Mux {
 				r.Post("/create", s.pairCreate())
 				r.Post("/accept", s.pairAccept())
 				r.Get("/pending", s.pairPending())
+				r.Post("/delete", s.pairDelete())
 			})
 
 			r.Route("/mailbox", func(r chi.Router) {
 				r.Post("/send", s.mailboxSend())
 				r.Get("/pending", s.mailboxPending())
 				r.Post("/ack", s.mailboxAck())
+			})
+
+			r.Route("/session", func(r chi.Router) {
+				r.Post("/claim", s.sessionClaim())
+				r.Post("/cancel", s.sessionCancel())
 			})
 
 			r.Post("/escrow", s.escrow())
