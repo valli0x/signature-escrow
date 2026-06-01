@@ -123,7 +123,7 @@ func FrostSignTaprootInc(c *frost.TaprootConfig, m []byte, signers party.IDSlice
 	return nil
 }
 
-func FrostSignTaprootCoSign(c *frost.TaprootConfig, incSig *protocol.Message, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
+func FrostSignTaprootCoSign(c *frost.TaprootConfig, m []byte, signers party.IDSlice, n network.Network) (taproot.Signature, error) {
 	h, err := protocol.NewMultiHandler(frost.SignTaproot(c, signers, m), nil)
 	if err != nil {
 		return nil, err

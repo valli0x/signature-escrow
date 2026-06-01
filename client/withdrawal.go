@@ -9,9 +9,12 @@ import (
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
+	"github.com/taurusgroup/multi-party-sig/protocols/frost"
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
+	"github.com/valli0x/signature-escrow/mpc/mpcfrost"
 	"github.com/valli0x/signature-escrow/network"
 	"github.com/valli0x/signature-escrow/storage"
 )
@@ -36,6 +39,10 @@ type AcceptWithdrawalTxRequest struct {
 	EscrowAddress string `json:"escrow_address"`
 	MyID          string `json:"my_id"`
 	Another       string `json:"another_id"`
+	// HashTx обязателен для FROST: протокол сам не пересылает хеш —
+	// обе стороны должны знать, что подписывают, заранее (через mailbox/UI).
+	// Для ECDSA не используется (хеш приходит в payload incomplete-signature).
+	HashTx string `json:"hash_tx,omitempty"`
 }
 
 type AcceptWithdrawalTxResponse struct {
@@ -145,8 +152,41 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			respondOk(w, response)
 
 		case "frost":
-			respondError(w, http.StatusNotImplemented, errors.New("FROST algorithm not implemented yet"))
-			return
+			config := &frost.TaprootConfig{}
+			data, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-frost")
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get frost config: %v", err))
+				return
+			}
+			if data == nil {
+				respondError(w, http.StatusNotFound, fmt.Errorf("frost config not found for %s/%s", name, escrowAddress))
+				return
+			}
+			if err := cbor.Unmarshal(data, config); err != nil {
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal frost config: %v", err))
+				return
+			}
+
+			hashB, err := hex.DecodeString(hashTxWithdrawal)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid hash format: %v", err))
+				return
+			}
+
+			signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
+
+			// FrostSignTaprootInc выполняет: send round2 → recv round2 → send round3.
+			// Полную подпись соберёт принимающая сторона в acceptWithdrawalTx.
+			if err := mpcfrost.FrostSignTaprootInc(config, hashB, signers, net); err != nil {
+				c.logger.Error("FROST inc signing failed", "error", err)
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("frost inc signing failed: %v", err))
+				return
+			}
+
+			respondOk(w, SendWithdrawalTxResponse{
+				Status:  "sent",
+				Message: "FROST partial signature exchanged (round2 + round3)",
+			})
 
 		default:
 			respondError(w, http.StatusBadRequest, errors.New("unknown alg(frost or ecdsa)"))
@@ -260,10 +300,49 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			respondOk(w, response)
 
 		case "frost":
-			msg := <-net.Next()
-			_ = msg
-			respondError(w, http.StatusNotImplemented, errors.New("FROST algorithm not implemented yet"))
-			return
+			if req.HashTx == "" {
+				respondError(w, http.StatusBadRequest, errors.New("hash_tx is required for FROST (both parties must know the hash in advance)"))
+				return
+			}
+
+			hashB, err := hex.DecodeString(req.HashTx)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid hash format: %v", err))
+				return
+			}
+
+			config := &frost.TaprootConfig{}
+			data, err := stor.Get(context.Background(), name+"/"+address+"/conf-frost")
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get frost config: %v", err))
+				return
+			}
+			if data == nil {
+				respondError(w, http.StatusNotFound, fmt.Errorf("frost config not found for %s/%s", name, address))
+				return
+			}
+			if err := cbor.Unmarshal(data, config); err != nil {
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal frost config: %v", err))
+				return
+			}
+
+			signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
+
+			// FrostSignTaprootCoSign выполняет: send round2 → recv round2 →
+			// (skip own round3) → recv round3 → собрать полную подпись.
+			// Параметр incSig в этой функции не используется — передаём nil.
+			sig, err := mpcfrost.FrostSignTaprootCoSign(config, hashB, signers, net)
+			if err != nil {
+				c.logger.Error("FROST co-sign failed", "error", err)
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("frost co-sign failed: %v", err))
+				return
+			}
+
+			respondOk(w, AcceptWithdrawalTxResponse{
+				Status:            "completed",
+				CompleteSignature: hex.EncodeToString(sig),
+				Message:           "FROST signature completed",
+			})
 
 		default:
 			respondError(w, http.StatusBadRequest, errors.New("unknown alg(frost or ecdsa)"))

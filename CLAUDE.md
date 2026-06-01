@@ -95,3 +95,53 @@ MODE=client CLIENT_ADDR=:8081 STORAGE_PATH=./data-b go run .
 ## What works today
 
 Auth · Pairing · Mailbox · ECDSA keygen (ETH) · FROST keygen (BTC) · Multi-account per pair · ETH balance/tx/send · BTC via BlockCypher · Incomplete-signature withdrawal flow · Escrow/timebox · Encrypted local storage.
+
+---
+
+# Production deployment & recent work (read this after a context reset)
+
+## Server: root@155.212.147.24 (mpcoven.net)
+
+SSH access is set up (key on server). The user authorized direct SSH.
+
+### Docker stack (`/root/signature-escrow/docker/docker-compose.yml`)
+All five services run from ONE image (`docker compose build <svc>`):
+- `se-nats` — NATS `2.10-alpine`, command `["-js", "-m", "8222"]`. **The `-m 8222` is required** — the healthcheck hits `http://localhost:8222/healthz`; without it nats is `unhealthy` and every `depends_on` service refuses to start. (I broke this once; don't drop it.)
+- `se-communication` — relay, `COMMUNICATION_ADDR=0.0.0.0:6379`, `NATS_URL=nats://nats:4222`
+- `se-server` — host API, `:8282`, env `JWT_SECRET`, `STORAGE_PASS`
+- `se-client-a` / `se-client-b` — `:8080`/`:8081`, `COMMUNICATION_ADDR=communication:6379`
+- nginx (`mpcoven-nginx`, image `fholzer/nginx-brotli`) + certbot are SEPARATE, in `/root/mpcoven/`.
+
+### nginx (config: `/root/mpcoven/nginx-ssl.conf`, mounted into `mpcoven-nginx`)
+Two server blocks (`:80` redirect, `:443` TLS). Inside the **443 block** (order matters — gRPC before `/api/`):
+- `location /exchange.Exchange/ { grpc_pass grpc://se-communication:6379; ... }` — exposes the MPC relay over TLS so remote clients reach it on `mpcoven.net:443`.
+- `location /api/ { proxy_pass http://se-server:8282/; }`
+- `/app/` serves the Flutter web build from `/root/mpcoven/build/app/`.
+After editing: `docker exec mpcoven-nginx nginx -t` then `nginx -s reload`. The site must stay `200` (`curl https://mpcoven.net/`).
+
+### Deploy a backend change
+```bash
+scp server/<file>.go root@155.212.147.24:/root/signature-escrow/server/
+ssh root@155.212.147.24 'cd /root/signature-escrow/docker && docker compose build server && docker compose up -d server'
+# clients use the same image:
+ssh root@155.212.147.24 'cd /root/signature-escrow/docker && docker compose build client-a client-b && docker compose up -d client-a client-b'
+```
+Server git is on `main`; commit after deploy so a clean rebuild doesn't lose changes.
+**Edit gotcha:** `Edit` tool string-matches failed silently several times on `routes.go`/`server.go` (matched stale text). After editing routes/struct, ALWAYS verify with `grep -c` before trusting the build.
+
+## Key endpoints added beyond the base set
+- `POST /v1/accounts/delete {network,index,address}` (client) — permanently deletes one account's key share (meta/conf/presig). `address` is a confirmation guard (must match stored meta). **Irreversible** — losing the share locks any funds (2-of-2).
+- `listAccounts` scans indices 1..100 and **must `continue` over gaps**, not `break` (deletion leaves holes; `break` would hide later accounts).
+- `POST /v1/session/claim {session_id}` and `POST /v1/session/cancel {session_id}` (server, `server/session.go`) — in-memory atomic registry (`sessionRegistry`, mutex). Resolves the keygen cancel/accept race: partner `claim`s before running its half; initiator `cancel`s. Exactly one wins. Returns `{ok: bool}`.
+
+## Relay = JetStream (not plain pub/sub)
+`network/server.go` uses a JetStream WorkQueue stream `RELAY` (subjects `["*"]`, MemoryStorage, MaxAge 10m). **Why:** plain NATS pub/sub dropped the first message if the peer subscribed late → keygen deadlocked when partners didn't start within ~5s. JetStream buffers it. `network/client.go` `Done()` cancels the gRPC stream so the per-subject consumer frees up for the next phase. ECDSA presign uses a distinct subject suffix (`acceptCh+"/presign"`) so it doesn't collide with the keygen-phase consumer on the WorkQueue.
+
+## TLS relay option
+`main.go` client mode: if `COMMUNICATION_TLS=true`, the gRPC client dials with `credentials.NewTLS` instead of insecure. Used so local/native clients reach `mpcoven.net:443`.
+
+## Test wallets (local, user-authorized)
+`~/.mpc-test-wallet/wallet.json` (A = `0x5E64B53A…1184f`) and `wallet-b.json` (B = `0x632Bb39…1aCD`), chmod 600. Sign nonces with `cast wallet sign --private-key <pk> <message>`. `eth_account` python is NOT installed — use `cast`.
+
+## How to test keygen end-to-end without the UI
+Two local clients on `:8080`/`:8081`. Both keygen halves need the SAME `session_id` (valid UUID, ≤36 chars), swapped `my_id`/`another_id`, same `index`. Fire both concurrently (threads). Identical returned address = success. A staggered start (one side late) is the regression test for the JetStream fix.

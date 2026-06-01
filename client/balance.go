@@ -95,7 +95,7 @@ func (c *Client) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResp
 
 	rpcURL := c.env.EthereumRPC
 	if rpcURL == "" {
-		rpcURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
+		rpcURL = "https://ethereum-rpc.publicnode.com"
 	}
 
 	client, err := ethclient.Dial(rpcURL)
@@ -224,7 +224,7 @@ func (c *Client) waitForEthereumBalance(ctx context.Context, req BalanceWaitRequ
 
 	rpcURL := c.env.EthereumRPC
 	if rpcURL == "" {
-		rpcURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
+		rpcURL = "https://ethereum-rpc.publicnode.com"
 	}
 
 	ethClient, err := ethclient.Dial(rpcURL)

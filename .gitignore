@@ -1,2 +1,10 @@
 env.yml
 data/
+# build artifacts & local runtime data
+bin/
+data-a/
+data-b/
+/main
+/escrow
+.DS_Store
+.idea/
