@@ -8,13 +8,13 @@ import (
 func (c *Client) routes() *chi.Mux {
 	r := chi.NewRouter()
 
-	cors := cors.New(cors.Options{
+	Cors := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Accept"},
 		AllowCredentials: false,
 	})
-	r.Use(cors.Handler)
+	r.Use(Cors.Handler)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/keygen", func(r chi.Router) {
@@ -25,6 +25,7 @@ func (c *Client) routes() *chi.Mux {
 		r.Route("/accounts", func(r chi.Router) {
 			r.Get("/list", c.listAccounts())
 			r.Post("/get", c.getAccount())
+			r.Post("/delete", c.deleteAccount())
 		})
 
 		r.Route("/balance", func(r chi.Router) {
