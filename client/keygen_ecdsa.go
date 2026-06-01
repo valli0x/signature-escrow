@@ -99,8 +99,10 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		// Presign with new connection (same session prefix)
-		net2, err := network.NewClient(c.env.Communication, acceptCh, sendCh, c.logger.With("component", "network"), c.Conn)
+		// Presign with new connection. Use a distinct subject suffix so the
+		// relay's per-subject consumer does not collide with the keygen phase
+		// (both parties derive the same "/presign" subjects deterministically).
+		net2, err := network.NewClient(c.env.Communication, acceptCh+"/presign", sendCh+"/presign", c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network for presign", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))

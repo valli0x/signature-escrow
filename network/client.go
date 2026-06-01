@@ -23,9 +23,11 @@ type client struct {
 	done         chan struct{}
 	ready        chan struct{}
 	closed       bool
+	cancel       context.CancelFunc
 }
 
 func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.ClientConn) (*client, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	client := &client{
 		address: address,
 		grpc:    pb.NewExchangeClient(conn),
@@ -36,15 +38,16 @@ func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.Cli
 		out:     make(chan *protocol.Message, 100),
 		done:    make(chan struct{}),
 		ready:   make(chan struct{}),
+		cancel:  cancel,
 	}
-	go client.receiving()
+	go client.receiving(ctx)
 	// Wait for subscription to be established before returning
 	<-client.ready
 	return client, nil
 }
 
-func (c *client) receiving() {
-	stream, err := c.grpc.Next(context.Background(), &pb.NextReq{Name: c.accept})
+func (c *client) receiving(ctx context.Context) {
+	stream, err := c.grpc.Next(ctx, &pb.NextReq{Name: c.accept})
 	if err != nil {
 		c.logger.Error("could not start Next stream", "error", err)
 		close(c.ready)
@@ -105,6 +108,9 @@ func (c *client) Done() chan struct{} {
 
 	if !c.closed {
 		c.closed = true
+		if c.cancel != nil {
+			c.cancel()
+		}
 		close(c.done)
 	}
 

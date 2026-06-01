@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/valli0x/signature-escrow/server"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -79,7 +81,12 @@ func runClient(ctx context.Context, env *config.Env, logger *slog.Logger) error 
 		return err
 	}
 
-	conn, err := grpc.NewClient(env.Communication, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	var commCreds credentials.TransportCredentials = insecure.NewCredentials()
+	if os.Getenv("COMMUNICATION_TLS") == "true" || os.Getenv("COMMUNICATION_TLS") == "1" {
+		// Relay reached over public TLS (e.g. nginx grpc_pass on :443).
+		commCreds = credentials.NewTLS(&tls.Config{})
+	}
+	conn, err := grpc.NewClient(env.Communication, grpc.WithTransportCredentials(commCreds))
 	if err != nil {
 		return fmt.Errorf("grpc connect: %w", err)
 	}
