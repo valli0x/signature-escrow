@@ -16,7 +16,6 @@ import (
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/mpc/mpcfrost"
 	"github.com/valli0x/signature-escrow/network"
-	"github.com/valli0x/signature-escrow/storage"
 )
 
 type SendWithdrawalTxRequest struct {
@@ -84,11 +83,9 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
-		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create encrypted storage: %v", err))
-			return
-		}
+		// keygen wrote via c.stor (already encrypted when STORAGE_PASS is set);
+		// read through the same layer — do NOT wrap again (double-encryption).
+		stor := c.stor
 
 		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
@@ -100,7 +97,7 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 		switch alg {
 		case "ecdsa":
 			config := mpccmp.EmptyConfig()
-			data, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-ecdsa")
+			data, err := stor.Get(context.Background(), "accounts/"+name+"/conf-ecdsa")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
@@ -111,7 +108,7 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			}
 
 			presign := mpccmp.EmptyPreSign()
-			data, err = stor.Get(context.Background(), name+"/"+escrowAddress+"/presign-ecdsa")
+			data, err = stor.Get(context.Background(), "accounts/"+name+"/presig-ecdsa")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get presign: %v", err))
 				return
@@ -166,7 +163,7 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 
 		case "frost":
 			config := &frost.TaprootConfig{}
-			data, err := stor.Get(context.Background(), name+"/"+escrowAddress+"/conf-frost")
+			data, err := stor.Get(context.Background(), "accounts/"+name+"/conf-frost")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get frost config: %v", err))
 				return
@@ -240,11 +237,9 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
-		stor, err := storage.NewEncryptedStorage(c.stor, c.storagePass)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create encrypted storage: %v", err))
-			return
-		}
+		// keygen wrote via c.stor (already encrypted when STORAGE_PASS is set);
+		// read through the same layer — do NOT wrap again (double-encryption).
+		stor := c.stor
 
 		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
 		if err != nil {
@@ -268,7 +263,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			}
 
 			config := mpccmp.EmptyConfig()
-			data, err := stor.Get(context.Background(), name+"/"+address+"/conf-ecdsa")
+			data, err := stor.Get(context.Background(), "accounts/"+name+"/conf-ecdsa")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
@@ -279,7 +274,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			}
 
 			presign := mpccmp.EmptyPreSign()
-			data, err = stor.Get(context.Background(), name+"/"+address+"/presign-ecdsa")
+			data, err = stor.Get(context.Background(), "accounts/"+name+"/presig-ecdsa")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get presign: %v", err))
 				return
@@ -338,7 +333,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			}
 
 			config := &frost.TaprootConfig{}
-			data, err := stor.Get(context.Background(), name+"/"+address+"/conf-frost")
+			data, err := stor.Get(context.Background(), "accounts/"+name+"/conf-frost")
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get frost config: %v", err))
 				return
