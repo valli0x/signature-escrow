@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
 	"github.com/taurusgroup/multi-party-sig/pkg/protocol"
+	"github.com/taurusgroup/multi-party-sig/protocols/cmp"
 	"github.com/taurusgroup/multi-party-sig/protocols/frost"
 	"github.com/valli0x/signature-escrow/mpc/mpccmp"
 	"github.com/valli0x/signature-escrow/mpc/mpcfrost"
@@ -30,6 +32,9 @@ type SendWithdrawalTxRequest struct {
 type SendWithdrawalTxResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	// PresignRotated reports whether a fresh single-use presignature was
+	// generated to replace the one just consumed (ECDSA only).
+	PresignRotated bool `json:"presign_rotated"`
 }
 
 type AcceptWithdrawalTxRequest struct {
@@ -48,6 +53,9 @@ type AcceptWithdrawalTxResponse struct {
 	Status            string `json:"status"`
 	CompleteSignature string `json:"complete_signature"`
 	Message           string `json:"message"`
+	// PresignRotated reports whether a fresh single-use presignature was
+	// generated to replace the one just consumed (ECDSA only).
+	PresignRotated bool `json:"presign_rotated"`
 }
 
 // sendWithdrawalTx initiates the sender half of an MPC withdrawal signature.
@@ -155,9 +163,15 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			}
 			net.Send(msg)
 
+			// The presignature is single-use: it was just consumed by the
+			// incomplete signature above. Regenerate it with the partner so the
+			// next withdrawal can sign. Both sides run this round.
+			rotated := c.rotateECDSAPresign(name, myid, another, config)
+
 			response := SendWithdrawalTxResponse{
-				Status:  "sent",
-				Message: "Incomplete signature sent successfully",
+				Status:         "sent",
+				Message:        "Incomplete signature sent successfully",
+				PresignRotated: rotated,
 			}
 			respondOk(w, response)
 
@@ -250,7 +264,16 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 		switch alg {
 		case "ecdsa":
-			msg := <-net.Next()
+			// Wait for the initiator's incomplete signature, but don't hang
+			// forever if they never send it.
+			var msg *protocol.Message
+			select {
+			case msg = <-net.Next():
+			case <-time.After(90 * time.Second):
+				respondError(w, http.StatusGatewayTimeout,
+					errors.New("timed out waiting for the other party's incomplete signature"))
+				return
+			}
 
 			tx := struct {
 				IncSig string `json:"inc_sig"`
@@ -313,10 +336,15 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 			completeSignature := hex.EncodeToString(sigEthereum)
 
+			// Presignature consumed — regenerate it with the partner so the
+			// next withdrawal can sign.
+			rotated := c.rotateECDSAPresign(name, myid, another, config)
+
 			response := AcceptWithdrawalTxResponse{
 				Status:            "completed",
 				CompleteSignature: completeSignature,
 				Message:           "Another complete signature of the withdrawal transaction",
+				PresignRotated:    rotated,
 			}
 			respondOk(w, response)
 
@@ -370,4 +398,55 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+// rotateECDSAPresign regenerates the single-use CMP presignature for an account
+// after it was consumed by a signing operation. It is an interactive round —
+// BOTH parties must run it (they meet on the "/rotate" relay subjects).
+//
+// On success the stored presignature is overwritten. On failure the consumed
+// presignature is DELETED so it can never be silently reused (which would be
+// insecure); the next signing attempt then fails loudly until a fresh presign
+// is generated. The already-produced signature is never affected.
+func (c *Client) rotateECDSAPresign(name, myid, another string, config *cmp.Config) bool {
+	presigKey := "accounts/" + name + "/presig-ecdsa"
+
+	signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
+
+	net, err := network.NewClient(
+		c.env.Communication,
+		myid+"/rotate", another+"/rotate",
+		c.logger.With("component", "network"), c.Conn,
+	)
+	if err != nil {
+		c.logger.Error("presign rotation: network setup failed", "error", err)
+		_ = c.stor.Delete(context.Background(), presigKey)
+		return false
+	}
+	defer net.Done()
+
+	pl := pool.NewPool(0)
+	defer pl.TearDown()
+
+	newPresig, err := mpccmp.CMPPreSign(config, signers, net, pl)
+	if err != nil {
+		c.logger.Error("presign rotation failed", "error", err)
+		_ = c.stor.Delete(context.Background(), presigKey)
+		return false
+	}
+
+	b, err := cbor.Marshal(newPresig)
+	if err != nil {
+		c.logger.Error("presign rotation: marshal failed", "error", err)
+		_ = c.stor.Delete(context.Background(), presigKey)
+		return false
+	}
+
+	if err := c.stor.Put(context.Background(), presigKey, b); err != nil {
+		c.logger.Error("presign rotation: save failed", "error", err)
+		return false
+	}
+
+	c.logger.Info("presignature rotated", "account", name)
+	return true
 }
