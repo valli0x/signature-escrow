@@ -3,6 +3,8 @@ package client
 import (
 	"github.com/go-chi/chi"
 	"github.com/rs/cors"
+	httpSwagger "github.com/swaggo/http-swagger"
+	_ "github.com/valli0x/signature-escrow/apidocs"
 )
 
 func (c *Client) routes() *chi.Mux {
@@ -16,6 +18,11 @@ func (c *Client) routes() *chi.Mux {
 	})
 	r.Use(Cors.Handler)
 
+	// Swagger UI: /swagger/index.html
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
+
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/keygen", func(r chi.Router) {
 			r.Post("/ecdsa", c.keygenECDSA())
@@ -26,6 +33,13 @@ func (c *Client) routes() *chi.Mux {
 			r.Get("/list", c.listAccounts())
 			r.Post("/get", c.getAccount())
 			r.Post("/delete", c.deleteAccount())
+		})
+
+		r.Route("/exchanges", func(r chi.Router) {
+			r.Get("/list", c.listExchanges())
+			r.Post("/create", c.createExchange())
+			r.Post("/update", c.updateExchange())
+			r.Post("/delete", c.deleteExchange())
 		})
 
 		r.Route("/balance", func(r chi.Router) {

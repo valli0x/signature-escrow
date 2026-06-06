@@ -160,6 +160,21 @@ func parseTimeboxPost(r *http.Request) (*timeboxEntry, error) {
 	}, nil
 }
 
+// timeboxPost stores a time-locked signature for a pair.
+//
+// @Summary      Store a timebox signature
+// @Description  Stores a validated signature bound to a pair. The signature becomes retrievable via GET after the timebox delay (1 hour). Only members of the pair may POST.
+// @Tags         timebox
+// @Accept       json
+// @Produce      json
+// @Param        body  body      TimeboxPostRequest  true  "Timebox entry"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/timebox [post]
 func (s *Server) timeboxPost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		e, err := parseTimeboxPost(r)
@@ -202,6 +217,21 @@ func (s *Server) timeboxPost() http.HandlerFunc {
 
 // ---------- GET /v1/timebox?pub=&hash= ----------
 
+// timeboxGet retrieves a time-locked signature once it is available.
+//
+// @Summary      Get a timebox signature
+// @Description  Returns whether a stored signature exists and is valid for the given pub/hash. Once the timebox delay has elapsed, includes the base64 signature. Only members of the bound pair may read.
+// @Tags         timebox
+// @Produce      json
+// @Param        pub   query     string  true  "Public key (hex)"
+// @Param        hash  query     string  true  "Message hash (hex, 32 bytes)"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/timebox [get]
 func (s *Server) timeboxGet() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pubHex := r.URL.Query().Get("pub")

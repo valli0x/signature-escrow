@@ -143,6 +143,22 @@ func loadInbox(stor storage.Storage, address string) ([]string, error) {
 
 // Handlers
 
+// mailboxSend sends a message to the other member of a pair.
+//
+// @Summary      Send a mailbox message
+// @Description  Sends a message to the other member of the given pair. The caller must be a member of the pair and the recipient must be the other member.
+// @Tags         mailbox
+// @Accept       json
+// @Produce      json
+// @Param        body  body      MailboxSendRequest  true  "Message to send"
+// @Success      200   {object}  MailboxSendResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/mailbox/send [post]
 func (s *Server) mailboxSend() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req MailboxSendRequest
@@ -207,6 +223,17 @@ func (s *Server) mailboxSend() http.HandlerFunc {
 	}
 }
 
+// mailboxPending lists the caller's pending inbox messages.
+//
+// @Summary      List pending messages
+// @Description  Returns all undelivered (un-acked) messages addressed to the caller.
+// @Tags         mailbox
+// @Produce      json
+// @Success      200  {object}  MailboxPendingResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/mailbox/pending [get]
 func (s *Server) mailboxPending() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		myAddr := auth.AddressFromContext(r.Context())
@@ -230,6 +257,22 @@ func (s *Server) mailboxPending() http.HandlerFunc {
 	}
 }
 
+// mailboxAck deletes a delivered message from the caller's inbox.
+//
+// @Summary      Acknowledge a message
+// @Description  Deletes a message from the caller's inbox by ID. Only the recipient may ack a message. Returns 204 No Content on success.
+// @Tags         mailbox
+// @Accept       json
+// @Produce      json
+// @Param        body  body      MailboxAckRequest  true  "Message ID"
+// @Success      204   "No Content"
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/mailbox/ack [post]
 func (s *Server) mailboxAck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req MailboxAckRequest

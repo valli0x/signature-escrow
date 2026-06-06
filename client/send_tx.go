@@ -35,6 +35,18 @@ type SendTransactionResponse struct {
 	Message string `json:"message"`
 }
 
+// sendTransaction broadcasts a signed transaction to the network.
+//
+// @Summary      Send transaction
+// @Description  Apply a signature to a transaction and broadcast it to the given network.
+// @Tags         tx
+// @Accept       json
+// @Produce      json
+// @Param        body  body      SendTransactionRequest  true  "Signed transaction parameters"
+// @Success      200   {object}  SendTransactionResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/tx/send [post]
 func (c *Client) sendTransaction() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SendTransactionRequest

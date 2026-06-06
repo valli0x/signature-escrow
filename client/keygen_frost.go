@@ -27,6 +27,18 @@ type KeygenFROSTResponse struct {
 	Index     int    `json:"index"`
 }
 
+// keygenFROST runs the local half of a FROST (Taproot) 2-of-2 keygen.
+//
+// @Summary      FROST keygen
+// @Description  Run the local half of a FROST Taproot 2-of-2 distributed key generation. Saves key material locally and returns the resulting Bitcoin address and public key.
+// @Tags         keygen
+// @Accept       json
+// @Produce      json
+// @Param        body  body      KeygenFROSTRequest  true  "Keygen parameters"
+// @Success      200   {object}  KeygenFROSTResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/keygen/frost [post]
 func (c *Client) keygenFROST() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req KeygenFROSTRequest

@@ -31,6 +31,18 @@ type LoginResponse struct {
 	Address string `json:"address"`
 }
 
+// authNonce issues a one-time nonce for an ETH address to sign.
+//
+// @Summary      Request a login nonce
+// @Description  Returns a nonce and an EIP-191 message for the given ETH address. The client signs the message and submits it to /v1/auth/login.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      NonceRequest  true  "ETH address"
+// @Success      200   {object}  NonceResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/auth/nonce [post]
 func (s *Server) authNonce() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req NonceRequest
@@ -59,6 +71,19 @@ func (s *Server) authNonce() http.HandlerFunc {
 	}
 }
 
+// authLogin verifies a signed nonce and issues a JWT.
+//
+// @Summary      Login with a signed nonce
+// @Description  Verifies the EIP-191 signature over the nonce message and returns a JWT (valid 24h) on success.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      LoginRequest  true  "Address, signature and nonce"
+// @Success      200   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/auth/login [post]
 func (s *Server) authLogin() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LoginRequest

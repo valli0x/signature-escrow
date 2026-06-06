@@ -30,6 +30,18 @@ type KeygenECDSAResponse struct {
 	Index     int    `json:"index"`
 }
 
+// keygenECDSA runs the local half of an ECDSA (CMP) 2-of-2 keygen + presign.
+//
+// @Summary      ECDSA keygen
+// @Description  Run the local half of an ECDSA (CMP) 2-of-2 distributed key generation and presignature. Saves key material locally and returns the resulting address and public key.
+// @Tags         keygen
+// @Accept       json
+// @Produce      json
+// @Param        body  body      KeygenECDSARequest  true  "Keygen parameters"
+// @Success      200   {object}  KeygenECDSAResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/keygen/ecdsa [post]
 func (c *Client) keygenECDSA() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req KeygenECDSARequest

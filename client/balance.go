@@ -45,6 +45,18 @@ type BalanceWaitResponse struct {
 	TimedOut     bool   `json:"timed_out"`
 }
 
+// checkBalance checks the current balance of an address.
+//
+// @Summary      Check balance
+// @Description  Check the current on-chain balance of an address and whether it meets the expected amount.
+// @Tags         balance
+// @Accept       json
+// @Produce      json
+// @Param        body  body      BalanceCheckRequest  true  "Balance check parameters"
+// @Success      200   {object}  BalanceCheckResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/balance/check [post]
 func (c *Client) checkBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceCheckRequest
@@ -167,6 +179,18 @@ func (c *Client) checkBitcoinBalance(req BalanceCheckRequest) (BalanceCheckRespo
 	return response, nil
 }
 
+// waitForBalance polls until an address reaches the expected balance or times out.
+//
+// @Summary      Wait for balance
+// @Description  Poll the on-chain balance of an address until it reaches the expected amount or the timeout elapses.
+// @Tags         balance
+// @Accept       json
+// @Produce      json
+// @Param        body  body      BalanceWaitRequest  true  "Balance wait parameters"
+// @Success      200   {object}  BalanceWaitResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/balance/wait [post]
 func (c *Client) waitForBalance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req BalanceWaitRequest

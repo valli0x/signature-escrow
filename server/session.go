@@ -70,8 +70,29 @@ func (r *sessionRegistry) cancel(id string) bool {
 	return true
 }
 
-// POST /v1/session/claim {session_id} -> {ok: bool}
-// Partner calls this before running its keygen half.
+// SessionRequest is the body for session claim/cancel: {"session_id":"..."}.
+type SessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// SessionResponse is the result of a session claim/cancel: {"ok":true|false}.
+type SessionResponse struct {
+	OK bool `json:"ok"`
+}
+
+// sessionClaim lets the partner claim a keygen session before running its half.
+//
+// @Summary      Claim a keygen session
+// @Description  The partner calls this before running its keygen half. ok=true means proceed; ok=false means the initiator already cancelled.
+// @Tags         session
+// @Accept       json
+// @Produce      json
+// @Param        body  body      SessionRequest  true  "Session ID"
+// @Success      200   {object}  SessionResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/session/claim [post]
 func (s *Server) sessionClaim() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		addr := auth.AddressFromContext(r.Context())
@@ -79,9 +100,7 @@ func (s *Server) sessionClaim() http.HandlerFunc {
 			respondError(w, http.StatusUnauthorized, errors.New("unauthorized"))
 			return
 		}
-		var req struct {
-			SessionID string `json:"session_id"`
-		}
+		var req SessionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return
@@ -94,8 +113,19 @@ func (s *Server) sessionClaim() http.HandlerFunc {
 	}
 }
 
-// POST /v1/session/cancel {session_id} -> {ok: bool}
-// Initiator calls this to cancel. ok=false means the partner already started.
+// sessionCancel lets the initiator cancel a keygen session.
+//
+// @Summary      Cancel a keygen session
+// @Description  The initiator calls this to cancel. ok=true means cancelled; ok=false means the partner already claimed (too late to cancel).
+// @Tags         session
+// @Accept       json
+// @Produce      json
+// @Param        body  body      SessionRequest  true  "Session ID"
+// @Success      200   {object}  SessionResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/session/cancel [post]
 func (s *Server) sessionCancel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		addr := auth.AddressFromContext(r.Context())
@@ -103,9 +133,7 @@ func (s *Server) sessionCancel() http.HandlerFunc {
 			respondError(w, http.StatusUnauthorized, errors.New("unauthorized"))
 			return
 		}
-		var req struct {
-			SessionID string `json:"session_id"`
-		}
+		var req SessionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return

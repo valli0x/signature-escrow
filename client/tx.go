@@ -32,6 +32,18 @@ type TxHashResponse struct {
 	TxData  string `json:"tx_data,omitempty"`
 }
 
+// createTxHash builds an unsigned transaction and returns its signing hash.
+//
+// @Summary      Create transaction hash
+// @Description  Build an unsigned transaction for the given network and return the hash to be signed (and raw tx data where available).
+// @Tags         tx
+// @Accept       json
+// @Produce      json
+// @Param        body  body      TxHashRequest  true  "Transaction parameters"
+// @Success      200   {object}  TxHashResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/tx/hash [post]
 func (c *Client) createTxHash() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req TxHashRequest

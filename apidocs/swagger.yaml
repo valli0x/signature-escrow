@@ -1,0 +1,1463 @@
+definitions:
+  client.AcceptWithdrawalTxRequest:
+    properties:
+      alg:
+        type: string
+      another_id:
+        type: string
+      escrow_address:
+        type: string
+      hash_tx:
+        description: |-
+          HashTx обязателен для FROST: протокол сам не пересылает хеш —
+          обе стороны должны знать, что подписывают, заранее (через mailbox/UI).
+          Для ECDSA не используется (хеш приходит в payload incomplete-signature).
+        type: string
+      my_id:
+        type: string
+      name:
+        type: string
+    type: object
+  client.AcceptWithdrawalTxResponse:
+    properties:
+      complete_signature:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  client.AccountDeleteRequest:
+    properties:
+      address:
+        description: confirmation
+        type: string
+      index:
+        type: integer
+      network:
+        type: string
+    type: object
+  client.AccountGetRequest:
+    properties:
+      index:
+        type: integer
+      network:
+        type: string
+    type: object
+  client.AccountMeta:
+    properties:
+      address:
+        type: string
+      index:
+        type: integer
+      network:
+        type: string
+      pair_my_id:
+        type: string
+      pair_other:
+        type: string
+      public_key:
+        type: string
+      session_id:
+        type: string
+    type: object
+  client.AccountsListResponse:
+    properties:
+      accounts:
+        items:
+          $ref: '#/definitions/client.AccountMeta'
+        type: array
+    type: object
+  client.BalanceCheckRequest:
+    properties:
+      address:
+        type: string
+      expected:
+        type: integer
+      network:
+        type: string
+    type: object
+  client.BalanceCheckResponse:
+    properties:
+      address:
+        type: string
+      balance:
+        type: integer
+      expected:
+        type: integer
+      is_sufficient:
+        type: boolean
+      network:
+        type: string
+    type: object
+  client.BalanceWaitRequest:
+    properties:
+      address:
+        type: string
+      expected:
+        type: integer
+      network:
+        type: string
+      timeout_sec:
+        type: integer
+    type: object
+  client.BalanceWaitResponse:
+    properties:
+      address:
+        type: string
+      balance:
+        type: integer
+      expected:
+        type: integer
+      is_sufficient:
+        type: boolean
+      network:
+        type: string
+      timed_out:
+        type: boolean
+    type: object
+  client.ErrorResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+    type: object
+  client.Exchange:
+    properties:
+      address_a:
+        type: string
+      address_b:
+        type: string
+      created_at:
+        description: unix ms
+        type: integer
+      id:
+        type: string
+    type: object
+  client.ExchangeCreateRequest:
+    properties:
+      address_a:
+        type: string
+      address_b:
+        type: string
+    type: object
+  client.ExchangeDeleteRequest:
+    properties:
+      id:
+        type: string
+    type: object
+  client.ExchangeListResponse:
+    properties:
+      exchanges:
+        items:
+          $ref: '#/definitions/client.Exchange'
+        type: array
+    type: object
+  client.ExchangeUpdateRequest:
+    properties:
+      address_a:
+        type: string
+      address_b:
+        type: string
+      id:
+        type: string
+    type: object
+  client.KeygenECDSARequest:
+    properties:
+      another_id:
+        type: string
+      index:
+        type: integer
+      my_id:
+        type: string
+      network:
+        type: string
+      session_id:
+        type: string
+    type: object
+  client.KeygenECDSAResponse:
+    properties:
+      address:
+        type: string
+      index:
+        type: integer
+      network:
+        type: string
+      public_key:
+        type: string
+      session_id:
+        type: string
+    type: object
+  client.KeygenFROSTRequest:
+    properties:
+      another_id:
+        type: string
+      index:
+        type: integer
+      my_id:
+        type: string
+      session_id:
+        type: string
+    type: object
+  client.KeygenFROSTResponse:
+    properties:
+      address:
+        type: string
+      index:
+        type: integer
+      public_key:
+        type: string
+      session_id:
+        type: string
+    type: object
+  client.SendTransactionRequest:
+    properties:
+      chain_id:
+        type: integer
+      from:
+        type: string
+      gas_limit:
+        type: string
+      gas_price:
+        type: string
+      network:
+        type: string
+      node_url:
+        type: string
+      signature:
+        type: string
+      to:
+        type: string
+      value:
+        type: string
+    type: object
+  client.SendTransactionResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+      tx_hash:
+        type: string
+    type: object
+  client.SendWithdrawalTxRequest:
+    properties:
+      alg:
+        type: string
+      another_id:
+        type: string
+      escrow_address:
+        type: string
+      hash_tx:
+        type: string
+      my_id:
+        type: string
+      name:
+        type: string
+    type: object
+  client.SendWithdrawalTxResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  client.TxHashRequest:
+    properties:
+      amount:
+        type: integer
+      chain_id:
+        type: integer
+      from:
+        type: string
+      gas_limit:
+        type: integer
+      network:
+        type: string
+      to:
+        type: string
+    type: object
+  client.TxHashResponse:
+    properties:
+      hash:
+        type: string
+      network:
+        type: string
+      tx_data:
+        type: string
+    type: object
+  server.ErrorResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+    type: object
+  server.EscrowRequest:
+    properties:
+      alg:
+        type: string
+      hash:
+        type: string
+      id:
+        type: string
+      pub:
+        type: string
+      sig:
+        type: string
+    type: object
+  server.LoginRequest:
+    properties:
+      address:
+        type: string
+      nonce:
+        type: string
+      signature:
+        type: string
+    type: object
+  server.LoginResponse:
+    properties:
+      address:
+        type: string
+      token:
+        type: string
+    type: object
+  server.MailboxAckRequest:
+    properties:
+      id:
+        type: string
+    type: object
+  server.MailboxPendingResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/server.Message'
+        type: array
+    type: object
+  server.MailboxSendRequest:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+      pair_id:
+        type: string
+      to:
+        type: string
+      type:
+        type: string
+    type: object
+  server.MailboxSendResponse:
+    properties:
+      id:
+        type: string
+    type: object
+  server.Message:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: integer
+      from:
+        type: string
+      id:
+        type: string
+      pair_id:
+        type: string
+      to:
+        type: string
+      type:
+        description: '"keygen_request", "keygen_accept", etc.'
+        type: string
+    type: object
+  server.NonceRequest:
+    properties:
+      address:
+        type: string
+    type: object
+  server.NonceResponse:
+    properties:
+      message:
+        type: string
+      nonce:
+        type: string
+    type: object
+  server.Pair:
+    properties:
+      created_at:
+        type: integer
+      id:
+        type: string
+      initiator:
+        type: string
+      partner:
+        type: string
+      status:
+        type: string
+    type: object
+  server.PairAcceptRequest:
+    properties:
+      id:
+        type: string
+    type: object
+  server.PairAcceptResponse:
+    properties:
+      id:
+        type: string
+      initiator:
+        type: string
+      partner:
+        type: string
+      status:
+        type: string
+    type: object
+  server.PairCreateRequest:
+    properties:
+      partner:
+        type: string
+    type: object
+  server.PairCreateResponse:
+    properties:
+      id:
+        type: string
+      initiator:
+        type: string
+      partner:
+        type: string
+      status:
+        type: string
+    type: object
+  server.PairPendingResponse:
+    properties:
+      incoming:
+        items:
+          $ref: '#/definitions/server.Pair'
+        type: array
+      outgoing:
+        items:
+          $ref: '#/definitions/server.Pair'
+        type: array
+    type: object
+  server.SessionRequest:
+    properties:
+      session_id:
+        type: string
+    type: object
+  server.SessionResponse:
+    properties:
+      ok:
+        type: boolean
+    type: object
+  server.TimeboxPostRequest:
+    properties:
+      alg:
+        type: string
+      hash:
+        type: string
+      pair_id:
+        description: 'обязателен: ограничивает, кто может POST/GET'
+        type: string
+      pub:
+        type: string
+      sig:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: |-
+    MPC 2-of-2 signature escrow wallet. Host (server) endpoints
+    handle auth, pairing, mailbox, keygen-session arbitration,
+    escrow and timebox. Local (client) endpoints handle keygen,
+    accounts, exchanges, balance, transactions and withdrawals.
+    Server endpoints under /v1 (except /auth) require a Bearer JWT.
+  title: Signature Escrow API
+  version: "1.0"
+paths:
+  /v1/accounts/delete:
+    post:
+      consumes:
+      - application/json
+      description: Permanently remove one shared account's key material from this
+        client's storage. The Address field must match the stored account address
+        as a safety confirmation. Irreversible.
+      parameters:
+      - description: Account to delete (with address confirmation)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.AccountDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Delete account
+      tags:
+      - accounts
+  /v1/accounts/get:
+    post:
+      consumes:
+      - application/json
+      description: Return metadata for a single locally stored account identified
+        by network and index.
+      parameters:
+      - description: Account identifier
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.AccountGetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.AccountMeta'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Get account
+      tags:
+      - accounts
+  /v1/accounts/list:
+    get:
+      description: List all locally stored accounts, optionally filtered by network.
+      parameters:
+      - description: 'Filter by network: eth or btc'
+        in: query
+        name: network
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.AccountsListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: List accounts
+      tags:
+      - accounts
+  /v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the EIP-191 signature over the nonce message and returns
+        a JWT (valid 24h) on success.
+      parameters:
+      - description: Address, signature and nonce
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Login with a signed nonce
+      tags:
+      - auth
+  /v1/auth/nonce:
+    post:
+      consumes:
+      - application/json
+      description: Returns a nonce and an EIP-191 message for the given ETH address.
+        The client signs the message and submits it to /v1/auth/login.
+      parameters:
+      - description: ETH address
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.NonceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.NonceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Request a login nonce
+      tags:
+      - auth
+  /v1/balance/check:
+    post:
+      consumes:
+      - application/json
+      description: Check the current on-chain balance of an address and whether it
+        meets the expected amount.
+      parameters:
+      - description: Balance check parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.BalanceCheckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.BalanceCheckResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Check balance
+      tags:
+      - balance
+  /v1/balance/wait:
+    post:
+      consumes:
+      - application/json
+      description: Poll the on-chain balance of an address until it reaches the expected
+        amount or the timeout elapses.
+      parameters:
+      - description: Balance wait parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.BalanceWaitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.BalanceWaitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Wait for balance
+      tags:
+      - balance
+  /v1/escrow:
+    post:
+      consumes:
+      - application/json
+      description: Submits one party's pub/hash/sig for an escrow ID. When both parties'
+        signatures validate, returns status "complete" with the counterparty signature;
+        otherwise status "pending".
+      parameters:
+      - description: Escrow flower
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.EscrowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit an escrow flower
+      tags:
+      - escrow
+  /v1/exchanges/create:
+    post:
+      consumes:
+      - application/json
+      description: Create an exchange entry. Addresses are optional and can be filled
+        in later via /update.
+      parameters:
+      - description: Exchange addresses (optional)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/client.ExchangeCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.Exchange'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Create exchange (draft)
+      tags:
+      - exchanges
+  /v1/exchanges/delete:
+    post:
+      consumes:
+      - application/json
+      description: Delete an exchange entry identified by id.
+      parameters:
+      - description: Exchange id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.ExchangeDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Delete exchange
+      tags:
+      - exchanges
+  /v1/exchanges/list:
+    get:
+      description: Return all locally stored exchange entries (newest first).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.ExchangeListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: List exchanges
+      tags:
+      - exchanges
+  /v1/exchanges/update:
+    post:
+      consumes:
+      - application/json
+      description: Update the addresses of an existing exchange identified by id.
+      parameters:
+      - description: Exchange id and addresses
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.ExchangeUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.Exchange'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Update exchange
+      tags:
+      - exchanges
+  /v1/incomplete-signature/accept:
+    post:
+      consumes:
+      - application/json
+      description: Run the accepting half of an MPC withdrawal signature and return
+        the complete signature (ECDSA co-sign, or FROST co-sign).
+      parameters:
+      - description: Withdrawal signing parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.AcceptWithdrawalTxRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.AcceptWithdrawalTxResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Accept incomplete signature
+      tags:
+      - incomplete-signature
+  /v1/incomplete-signature/send:
+    post:
+      consumes:
+      - application/json
+      description: Run the initiating half of an MPC withdrawal signature (ECDSA incomplete
+        signature send, or FROST round2/round3 exchange).
+      parameters:
+      - description: Withdrawal signing parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.SendWithdrawalTxRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.SendWithdrawalTxResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Send incomplete signature
+      tags:
+      - incomplete-signature
+  /v1/keygen/ecdsa:
+    post:
+      consumes:
+      - application/json
+      description: Run the local half of an ECDSA (CMP) 2-of-2 distributed key generation
+        and presignature. Saves key material locally and returns the resulting address
+        and public key.
+      parameters:
+      - description: Keygen parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.KeygenECDSARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.KeygenECDSAResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: ECDSA keygen
+      tags:
+      - keygen
+  /v1/keygen/frost:
+    post:
+      consumes:
+      - application/json
+      description: Run the local half of a FROST Taproot 2-of-2 distributed key generation.
+        Saves key material locally and returns the resulting Bitcoin address and public
+        key.
+      parameters:
+      - description: Keygen parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.KeygenFROSTRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.KeygenFROSTResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: FROST keygen
+      tags:
+      - keygen
+  /v1/mailbox/ack:
+    post:
+      consumes:
+      - application/json
+      description: Deletes a message from the caller's inbox by ID. Only the recipient
+        may ack a message. Returns 204 No Content on success.
+      parameters:
+      - description: Message ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.MailboxAckRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Acknowledge a message
+      tags:
+      - mailbox
+  /v1/mailbox/pending:
+    get:
+      description: Returns all undelivered (un-acked) messages addressed to the caller.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.MailboxPendingResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List pending messages
+      tags:
+      - mailbox
+  /v1/mailbox/send:
+    post:
+      consumes:
+      - application/json
+      description: Sends a message to the other member of the given pair. The caller
+        must be a member of the pair and the recipient must be the other member.
+      parameters:
+      - description: Message to send
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.MailboxSendRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.MailboxSendResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send a mailbox message
+      tags:
+      - mailbox
+  /v1/pair/accept:
+    post:
+      consumes:
+      - application/json
+      description: 'The partner accepts a pending pair by its ID. Idempotent: returns
+        the pair if it is already accepted.'
+      parameters:
+      - description: Pair ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.PairAcceptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.PairAcceptResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Accept a pair
+      tags:
+      - pair
+  /v1/pair/create:
+    post:
+      consumes:
+      - application/json
+      description: 'Create a pending pair request to another ETH address. Idempotent:
+        returns the existing pair if present.'
+      parameters:
+      - description: Partner address
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.PairCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.PairCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a pair
+      tags:
+      - pair
+  /v1/pair/delete:
+    post:
+      consumes:
+      - application/json
+      description: 'Removes a pair entirely (both participants lose it). Only a member
+        of the pair may delete it. Idempotent: returns success if the pair is already
+        gone.'
+      parameters:
+      - description: Pair ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.PairAcceptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a pair
+      tags:
+      - pair
+  /v1/pair/pending:
+    get:
+      description: Returns all pairs involving the caller, split into incoming (caller
+        is partner) and outgoing (caller is initiator).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.PairPendingResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List pending pairs
+      tags:
+      - pair
+  /v1/session/cancel:
+    post:
+      consumes:
+      - application/json
+      description: The initiator calls this to cancel. ok=true means cancelled; ok=false
+        means the partner already claimed (too late to cancel).
+      parameters:
+      - description: Session ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.SessionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.SessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel a keygen session
+      tags:
+      - session
+  /v1/session/claim:
+    post:
+      consumes:
+      - application/json
+      description: The partner calls this before running its keygen half. ok=true
+        means proceed; ok=false means the initiator already cancelled.
+      parameters:
+      - description: Session ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.SessionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.SessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Claim a keygen session
+      tags:
+      - session
+  /v1/timebox:
+    get:
+      description: Returns whether a stored signature exists and is valid for the
+        given pub/hash. Once the timebox delay has elapsed, includes the base64 signature.
+        Only members of the bound pair may read.
+      parameters:
+      - description: Public key (hex)
+        in: query
+        name: pub
+        required: true
+        type: string
+      - description: Message hash (hex, 32 bytes)
+        in: query
+        name: hash
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a timebox signature
+      tags:
+      - timebox
+    post:
+      consumes:
+      - application/json
+      description: Stores a validated signature bound to a pair. The signature becomes
+        retrievable via GET after the timebox delay (1 hour). Only members of the
+        pair may POST.
+      parameters:
+      - description: Timebox entry
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/server.TimeboxPostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Store a timebox signature
+      tags:
+      - timebox
+  /v1/tx/hash:
+    post:
+      consumes:
+      - application/json
+      description: Build an unsigned transaction for the given network and return
+        the hash to be signed (and raw tx data where available).
+      parameters:
+      - description: Transaction parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.TxHashRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.TxHashResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Create transaction hash
+      tags:
+      - tx
+  /v1/tx/send:
+    post:
+      consumes:
+      - application/json
+      description: Apply a signature to a transaction and broadcast it to the given
+        network.
+      parameters:
+      - description: Signed transaction parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/client.SendTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/client.SendTransactionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/client.ErrorResponse'
+      summary: Send transaction
+      tags:
+      - tx
+securityDefinitions:
+  BearerAuth:
+    description: JWT obtained from /v1/auth/login, sent as "Bearer <token>".
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -25,6 +25,30 @@ type AccountsListResponse struct {
 	Accounts []AccountMeta `json:"accounts"`
 }
 
+// AccountGetRequest identifies an account by network and index.
+type AccountGetRequest struct {
+	Network string `json:"network"`
+	Index   int    `json:"index"`
+}
+
+// AccountDeleteRequest identifies an account to delete; Address echoes the
+// stored account address as a safety confirmation.
+type AccountDeleteRequest struct {
+	Network string `json:"network"`
+	Index   int    `json:"index"`
+	Address string `json:"address"` // confirmation
+}
+
+// listAccounts lists locally stored accounts.
+//
+// @Summary      List accounts
+// @Description  List all locally stored accounts, optionally filtered by network.
+// @Tags         accounts
+// @Produce      json
+// @Param        network  query  string  false  "Filter by network: eth or btc"
+// @Success      200      {object}  AccountsListResponse
+// @Failure      500      {object}  ErrorResponse
+// @Router       /v1/accounts/list [get]
 func (c *Client) listAccounts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		network := r.URL.Query().Get("network")
@@ -62,13 +86,21 @@ func (c *Client) listAccounts() http.HandlerFunc {
 // THIS client's storage. The caller must echo the account address as a
 // safety confirmation (it must match the stored meta). This is irreversible —
 // without this share the 2-of-2 key can never sign again.
+//
+// @Summary      Delete account
+// @Description  Permanently remove one shared account's key material from this client's storage. The Address field must match the stored account address as a safety confirmation. Irreversible.
+// @Tags         accounts
+// @Accept       json
+// @Produce      json
+// @Param        body  body      AccountDeleteRequest  true  "Account to delete (with address confirmation)"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/accounts/delete [post]
 func (c *Client) deleteAccount() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Network string `json:"network"`
-			Index   int    `json:"index"`
-			Address string `json:"address"` // confirmation
-		}
+		var req AccountDeleteRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return
@@ -119,12 +151,22 @@ func (c *Client) deleteAccount() http.HandlerFunc {
 	}
 }
 
+// getAccount returns metadata for a single account.
+//
+// @Summary      Get account
+// @Description  Return metadata for a single locally stored account identified by network and index.
+// @Tags         accounts
+// @Accept       json
+// @Produce      json
+// @Param        body  body      AccountGetRequest  true  "Account identifier"
+// @Success      200   {object}  AccountMeta
+// @Failure      400   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/accounts/get [post]
 func (c *Client) getAccount() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Network string `json:"network"`
-			Index   int    `json:"index"`
-		}
+		var req AccountGetRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return

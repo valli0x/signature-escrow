@@ -169,6 +169,20 @@ func loadIndex(stor storage.Storage, address string) ([]string, error) {
 
 // Handlers
 
+// pairCreate creates a pending pair with another ETH address.
+//
+// @Summary      Create a pair
+// @Description  Create a pending pair request to another ETH address. Idempotent: returns the existing pair if present.
+// @Tags         pair
+// @Accept       json
+// @Produce      json
+// @Param        body  body      PairCreateRequest  true  "Partner address"
+// @Success      200   {object}  PairCreateResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/pair/create [post]
 func (s *Server) pairCreate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req PairCreateRequest
@@ -233,6 +247,22 @@ func (s *Server) pairCreate() http.HandlerFunc {
 	}
 }
 
+// pairAccept accepts a pending incoming pair.
+//
+// @Summary      Accept a pair
+// @Description  The partner accepts a pending pair by its ID. Idempotent: returns the pair if it is already accepted.
+// @Tags         pair
+// @Accept       json
+// @Produce      json
+// @Param        body  body      PairAcceptRequest  true  "Pair ID"
+// @Success      200   {object}  PairAcceptResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/pair/accept [post]
 func (s *Server) pairAccept() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req PairAcceptRequest
@@ -298,6 +328,17 @@ func (s *Server) pairAccept() http.HandlerFunc {
 	}
 }
 
+// pairPending lists the caller's incoming and outgoing pairs.
+//
+// @Summary      List pending pairs
+// @Description  Returns all pairs involving the caller, split into incoming (caller is partner) and outgoing (caller is initiator).
+// @Tags         pair
+// @Produce      json
+// @Success      200  {object}  PairPendingResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/pair/pending [get]
 func (s *Server) pairPending() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		myAddr := auth.AddressFromContext(r.Context())
@@ -333,6 +374,21 @@ func (s *Server) pairPending() http.HandlerFunc {
 // pairDelete removes a pair from the server entirely (both participants lose
 // it). Only a member of the pair may delete it. The pair must be re-created to
 // pair again.
+// pairDelete removes a pair from the server for both participants.
+//
+// @Summary      Delete a pair
+// @Description  Removes a pair entirely (both participants lose it). Only a member of the pair may delete it. Idempotent: returns success if the pair is already gone.
+// @Tags         pair
+// @Accept       json
+// @Produce      json
+// @Param        body  body      PairAcceptRequest  true  "Pair ID"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/pair/delete [post]
 func (s *Server) pairDelete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req PairAcceptRequest // reuses {id}

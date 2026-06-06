@@ -182,6 +182,20 @@ func parseEscrowRequest(r *http.Request) (*flower, error) {
 	}, nil
 }
 
+// escrow submits a flower (pub/hash/sig) and pollinates a 2-party escrow.
+//
+// @Summary      Submit an escrow flower
+// @Description  Submits one party's pub/hash/sig for an escrow ID. When both parties' signatures validate, returns status "complete" with the counterparty signature; otherwise status "pending".
+// @Tags         escrow
+// @Accept       json
+// @Produce      json
+// @Param        body  body      EscrowRequest  true  "Escrow flower"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Security     BearerAuth
+// @Router       /v1/escrow [post]
 func (s *Server) escrow() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		f, err := parseEscrowRequest(r)

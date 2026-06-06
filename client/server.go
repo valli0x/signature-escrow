@@ -104,13 +104,15 @@ func respondOk(w http.ResponseWriter, body interface{}) {
 	}
 }
 
+// ErrorResponse is the JSON error envelope returned by all client endpoints.
+type ErrorResponse struct {
+	Errors []string `json:"errors"`
+}
+
 func respondError(w http.ResponseWriter, status int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	type ErrorResponse struct {
-		Errors []string `json:"errors"`
-	}
 	resp := &ErrorResponse{Errors: make([]string, 0, 1)}
 	if err != nil {
 		resp.Errors = append(resp.Errors, err.Error())

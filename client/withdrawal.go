@@ -51,6 +51,19 @@ type AcceptWithdrawalTxResponse struct {
 	Message           string `json:"message"`
 }
 
+// sendWithdrawalTx initiates the sender half of an MPC withdrawal signature.
+//
+// @Summary      Send incomplete signature
+// @Description  Run the initiating half of an MPC withdrawal signature (ECDSA incomplete signature send, or FROST round2/round3 exchange).
+// @Tags         incomplete-signature
+// @Accept       json
+// @Produce      json
+// @Param        body  body      SendWithdrawalTxRequest  true  "Withdrawal signing parameters"
+// @Success      200   {object}  SendWithdrawalTxResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/incomplete-signature/send [post]
 func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SendWithdrawalTxRequest
@@ -195,6 +208,19 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 	}
 }
 
+// acceptWithdrawalTx completes the receiver half of an MPC withdrawal signature.
+//
+// @Summary      Accept incomplete signature
+// @Description  Run the accepting half of an MPC withdrawal signature and return the complete signature (ECDSA co-sign, or FROST co-sign).
+// @Tags         incomplete-signature
+// @Accept       json
+// @Produce      json
+// @Param        body  body      AcceptWithdrawalTxRequest  true  "Withdrawal signing parameters"
+// @Success      200   {object}  AcceptWithdrawalTxResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /v1/incomplete-signature/accept [post]
 func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req AcceptWithdrawalTxRequest
