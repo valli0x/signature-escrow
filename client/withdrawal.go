@@ -165,15 +165,16 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			}
 			net.Send(msg)
 
-			// The presignature is single-use: it was just consumed by the
-			// incomplete signature above. Regenerate it with the partner so the
-			// next withdrawal can sign. Both sides run this round.
-			rotated := c.rotateECDSAPresign(name, myid, another, config)
+			// Respond immediately — do NOT block the request on presignature
+			// rotation. Rotation is an interactive round that can only complete
+			// once the partner accepts; running it inline would hang the caller
+			// until then. Run it in the background instead.
+			go c.rotateECDSAPresign(name, myid, another, hashTxWithdrawal, config)
 
 			response := SendWithdrawalTxResponse{
 				Status:         "sent",
-				Message:        "Incomplete signature sent successfully",
-				PresignRotated: rotated,
+				Message:        "Incomplete signature sent; presignature refreshing in background",
+				PresignRotated: false,
 			}
 			respondOk(w, response)
 
@@ -340,15 +341,15 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 			completeSignature := hex.EncodeToString(sigEthereum)
 
-			// Presignature consumed — regenerate it with the partner so the
-			// next withdrawal can sign.
-			rotated := c.rotateECDSAPresign(name, myid, another, config)
+			// Return the signature immediately; refresh the consumed
+			// presignature in the background (interactive round with the peer).
+			go c.rotateECDSAPresign(name, myid, another, tx.HashTx, config)
 
 			response := AcceptWithdrawalTxResponse{
 				Status:            "completed",
 				CompleteSignature: completeSignature,
 				Message:           "Another complete signature of the withdrawal transaction",
-				PresignRotated:    rotated,
+				PresignRotated:    false,
 			}
 			respondOk(w, response)
 
@@ -412,14 +413,16 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 // presignature is DELETED so it can never be silently reused (which would be
 // insecure); the next signing attempt then fails loudly until a fresh presign
 // is generated. The already-produced signature is never affected.
-func (c *Client) rotateECDSAPresign(name, myid, another string, config *cmp.Config) bool {
+func (c *Client) rotateECDSAPresign(name, myid, another, roundID string, config *cmp.Config) bool {
 	presigKey := "accounts/" + name + "/presig-ecdsa"
 
 	signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
+	// Per-round relay subjects (scoped by roundID, e.g. the tx hash) so rotations
+	// from different signings — or a leftover one — never collide on the queue.
 	net, err := network.NewClient(
 		c.env.Communication,
-		myid+"/rotate", another+"/rotate",
+		myid+"/rotate/"+roundID, another+"/rotate/"+roundID,
 		c.logger.With("component", "network"), c.Conn,
 	)
 	if err != nil {
