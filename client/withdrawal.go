@@ -27,9 +27,10 @@ type SendWithdrawalTxRequest struct {
 	HashTx        string `json:"hash_tx"`
 	MyID          string `json:"my_id"`
 	Another       string `json:"another_id"`
-	// Optional tx context, only for history display.
+	// Optional tx context (history display + later broadcast from Activity).
 	To     string `json:"to,omitempty"`
 	Amount string `json:"amount,omitempty"`
+	TxData string `json:"tx_data,omitempty"`
 }
 
 type SendWithdrawalTxResponse struct {
@@ -189,6 +190,7 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 				Role: "initiator", Status: "sent",
 				Network: net0, Index: idx0, Escrow: escrowAddress,
 				To: req.To, Amount: req.Amount, Hash: hashTxWithdrawal,
+				TxData: req.TxData,
 			})
 
 			response := SendWithdrawalTxResponse{

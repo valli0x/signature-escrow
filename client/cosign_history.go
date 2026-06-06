@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,6 +80,42 @@ func (c *Client) recordCosign(ev CosignEvent) {
 		return
 	}
 	_ = c.stor.Put(context.Background(), cosignHistoryKey, b)
+}
+
+// completeCosign marks an initiator's "sent" event for a given hash as
+// completed and attaches the signature returned by the partner — so the
+// initiator can broadcast it from Activity too.
+func (c *Client) completeCosign() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Hash      string `json:"hash"`
+			Signature string `json:"signature"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+		if req.Hash == "" || req.Signature == "" {
+			respondError(w, http.StatusBadRequest, errors.New("hash and signature are required"))
+			return
+		}
+		list := c.loadCosignHistory()
+		updated := false
+		for i := range list {
+			if list[i].Hash == req.Hash && list[i].Role == "initiator" &&
+				list[i].Status != "broadcast" {
+				list[i].Status = "completed"
+				list[i].Signature = req.Signature
+				updated = true
+			}
+		}
+		if updated {
+			if b, err := cbor.Marshal(list); err == nil {
+				_ = c.stor.Put(context.Background(), cosignHistoryKey, b)
+			}
+		}
+		respondOk(w, map[string]any{"updated": updated})
+	}
 }
 
 // listCosignHistory godoc
