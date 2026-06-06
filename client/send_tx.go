@@ -126,7 +126,7 @@ func (c *Client) sendEthereumTransaction(req SendTransactionRequest) (SendTransa
 	if nodeURL == "" {
 		nodeURL = c.env.EthereumRPC
 		if nodeURL == "" {
-			nodeURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
+			nodeURL = "https://ethereum-rpc.publicnode.com"
 		}
 	}
 

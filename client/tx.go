@@ -95,7 +95,7 @@ func (c *Client) createEthereumTxHash(req TxHashRequest) (TxHashResponse, error)
 
 	rpcURL := c.env.EthereumRPC
 	if rpcURL == "" {
-		rpcURL = "https://eth-mainnet.alchemyapi.io/v2/demo"
+		rpcURL = "https://ethereum-rpc.publicnode.com"
 	}
 
 	ethClient, err := ethclient.Dial(rpcURL)
