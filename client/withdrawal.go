@@ -110,7 +110,9 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
-			if err := cbor.Unmarshal(data, config); err != nil {
+			// Config is stored via cmp.Config.MarshalBinary (not plain cbor),
+			// so it must be read back the same way.
+			if err := config.UnmarshalBinary(data); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
 			}
@@ -291,7 +293,9 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
-			if err := cbor.Unmarshal(data, config); err != nil {
+			// Config is stored via cmp.Config.MarshalBinary (not plain cbor),
+			// so it must be read back the same way.
+			if err := config.UnmarshalBinary(data); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
 			}
