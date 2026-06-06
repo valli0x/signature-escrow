@@ -52,6 +52,11 @@ func (c *Client) routes() *chi.Mux {
 			r.Post("/send", c.sendTransaction())
 		})
 
+		r.Route("/cosign", func(r chi.Router) {
+			r.Get("/history", c.listCosignHistory())
+			r.Post("/history/clear", c.clearCosignHistory())
+		})
+
 		r.Route("/incomplete-signature", func(r chi.Router) {
 			r.Post("/send", c.sendWithdrawalTx())
 			r.Post("/accept", c.acceptWithdrawalTx())

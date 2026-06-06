@@ -48,7 +48,10 @@ docker/       docker-compose for local dev
 
 ### Storage keys
 - Server: `pairs/{id}`, `pairs/by-addr/{addr}`, `mailbox/{id}`, `mailbox/inbox/{addr}`, nonces.
-- Client: `accounts/{network}/{index}/{conf-ecdsa|conf-frost|presig-ecdsa|meta}`. `network ∈ {eth, btc}`, `index ∈ [1..100]`.
+- Client: `accounts/{network}/{index}/{conf-ecdsa|conf-frost|presig-ecdsa|presig-frost|meta}`. `network ∈ {eth, btc}`, `index ∈ [1..100]`.
+  - **ECDSA config is saved via `cmp.Config.MarshalBinary()`** → read it back with `config.UnmarshalBinary(data)`, NOT `cbor.Unmarshal` (that errors "cannot unmarshal byte string into curve.Scalar"). Presig + FROST config use `cbor`.
+  - **Spelling is `presig-ecdsa`** (not `presign-ecdsa`). The withdrawal flow loads from `accounts/{name}/...` where `name="{net}/{index}"`, using `c.stor` directly (do NOT re-wrap in EncryptedStorage — keygen already wrote through `c.stor`, double-encrypting breaks it).
+- Client (other): `exchanges/all` (cbor list of Exchange), `cosign-history/all` (cbor list of CosignEvent, cap 200).
 
 ### Validation (client `util.go`)
 - `validateSessionID` — UUID format, ≤36 chars
@@ -133,12 +136,29 @@ Server git is on `main`; commit after deploy so a clean rebuild doesn't lose cha
 - `POST /v1/accounts/delete {network,index,address}` (client) — permanently deletes one account's key share (meta/conf/presig). `address` is a confirmation guard (must match stored meta). **Irreversible** — losing the share locks any funds (2-of-2).
 - `listAccounts` scans indices 1..100 and **must `continue` over gaps**, not `break` (deletion leaves holes; `break` would hide later accounts).
 - `POST /v1/session/claim {session_id}` and `POST /v1/session/cancel {session_id}` (server, `server/session.go`) — in-memory atomic registry (`sessionRegistry`, mutex). Resolves the keygen cancel/accept race: partner `claim`s before running its half; initiator `cancel`s. Exactly one wins. Returns `{ok: bool}`.
+- `GET/POST /v1/exchanges/{list,create,update,delete}` (client, `client/exchange.go`) — user-defined exchanges linking two addresses; create may be an empty draft, filled later via update.
+- `GET /v1/cosign/history`, `POST /v1/cosign/history/clear` (client, `client/cosign_history.go`) — local activity log; each client records its OWN co-sign/broadcast actions (initiator `sent`, acceptor `completed` w/ signature+tx_data, `broadcast`).
+- `POST /v1/balance/check` now allows `expected: 0` (pure balance query, no sufficiency check).
+- `POST /v1/tx/send` accepts `tx_data` (RLP of the unsigned tx). When present it decodes it, `WithSignature`, and broadcasts VERBATIM — the only correct way to send an MPC-signed tx. chainId is forced to 1 (an UNSIGNED legacy `tx.ChainId()` returns garbage → "invalid chain ID"). Default ETH RPC is `https://ethereum-rpc.publicnode.com` (the old alchemy demo host is dead) — override with `ETHEREUM_RPC`.
+
+## MPC co-signing (withdrawal) — current design
+- Subjects are **per-hash**: co-sign on `<id>/cosign/<hash>`, presig rotation on `<id>/rotate/<hash>`. Fixed subjects collided across rounds → `nats: filtered consumer not unique on workqueue stream` (hang). Both sides derive the same subject from the shared tx hash.
+- The acceptor returns the signature in **Ethereum format via `mpccmp.SigEthereum`** (low-s + r‖s‖v with recovery id). `GetSigByte` returns CMP-native R‖S which a node can't verify ("error getting from").
+- **Presignature is single-use.** After each `send`/`accept` the client runs an interactive re-presign (`CMPPreSign`) in a **goroutine** (background — running it inline hangs the HTTP caller until the peer participates). On failure the consumed presig is DELETED so it's never silently reused.
+- `acceptWithdrawalTx` requires `hash_tx` (to scope the subject) and waits on `<-net.Next()` with a 90s timeout.
 
 ## Relay = JetStream (not plain pub/sub)
 `network/server.go` uses a JetStream WorkQueue stream `RELAY` (subjects `["*"]`, MemoryStorage, MaxAge 10m). **Why:** plain NATS pub/sub dropped the first message if the peer subscribed late → keygen deadlocked when partners didn't start within ~5s. JetStream buffers it. `network/client.go` `Done()` cancels the gRPC stream so the per-subject consumer frees up for the next phase. ECDSA presign uses a distinct subject suffix (`acceptCh+"/presign"`) so it doesn't collide with the keygen-phase consumer on the WorkQueue.
 
 ## TLS relay option
 `main.go` client mode: if `COMMUNICATION_TLS=true`, the gRPC client dials with `credentials.NewTLS` instead of insecure. Used so local/native clients reach `mpcoven.net:443`.
+
+## Swagger / OpenAPI
+All endpoints have swaggo annotations; Swagger UI at `<base>/swagger/index.html` (server :8282 and each client). Regenerate the spec into `apidocs/` (NOT `docs/` — it's in `.dockerignore`):
+`swag init -g docs.go --parseDependency --parseInternal -o apidocs`. General info lives in `docs.go` (package main). `apidocs` is imported (blank) in both routers.
+
+## Git / GitHub
+Repo pushed to `git@github.com:valli0x/signature-escrow.git` (branch `main`). The SERVER's git remote is https without creds — **push from the local machine**, deploy to the server via scp + `docker compose build` (NOT git pull on the host). Note: `.env` is tracked but contains only placeholders (no real secrets).
 
 ## Test wallets (local, user-authorized)
 `~/.mpc-test-wallet/wallet.json` (A = `0x5E64B53A…1184f`) and `wallet-b.json` (B = `0x632Bb39…1aCD`), chmod 600. Sign nonces with `cast wallet sign --private-key <pk> <message>`. `eth_account` python is NOT installed — use `cast`.

@@ -27,6 +27,9 @@ type SendWithdrawalTxRequest struct {
 	HashTx        string `json:"hash_tx"`
 	MyID          string `json:"my_id"`
 	Another       string `json:"another_id"`
+	// Optional tx context, only for history display.
+	To     string `json:"to,omitempty"`
+	Amount string `json:"amount,omitempty"`
 }
 
 type SendWithdrawalTxResponse struct {
@@ -47,6 +50,10 @@ type AcceptWithdrawalTxRequest struct {
 	// обе стороны должны знать, что подписывают, заранее (через mailbox/UI).
 	// Для ECDSA не используется (хеш приходит в payload incomplete-signature).
 	HashTx string `json:"hash_tx,omitempty"`
+	// Optional tx context (for history + later broadcast from Activity).
+	To     string `json:"to,omitempty"`
+	Amount string `json:"amount,omitempty"`
+	TxData string `json:"tx_data,omitempty"`
 }
 
 type AcceptWithdrawalTxResponse struct {
@@ -95,12 +102,18 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 		// read through the same layer — do NOT wrap again (double-encryption).
 		stor := c.stor
 
-		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
+		// Per-round relay subjects (scoped by the tx hash) so consumers from
+		// different co-sign rounds never collide ("filtered consumer not unique").
+		net, err := network.NewClient(
+			c.env.Communication,
+			myid+"/cosign/"+hashTxWithdrawal, another+"/cosign/"+hashTxWithdrawal,
+			c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
 			return
 		}
+		defer net.Done()
 
 		switch alg {
 		case "ecdsa":
@@ -170,6 +183,13 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			// once the partner accepts; running it inline would hang the caller
 			// until then. Run it in the background instead.
 			go c.rotateECDSAPresign(name, myid, another, hashTxWithdrawal, config)
+
+			net0, idx0 := parseAccountName(name)
+			c.recordCosign(CosignEvent{
+				Role: "initiator", Status: "sent",
+				Network: net0, Index: idx0, Escrow: escrowAddress,
+				To: req.To, Amount: req.Amount, Hash: hashTxWithdrawal,
+			})
 
 			response := SendWithdrawalTxResponse{
 				Status:         "sent",
@@ -247,6 +267,11 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("alg, name and escrow_address are required"))
 			return
 		}
+		// hash_tx is required so both parties scope the relay subject identically.
+		if req.HashTx == "" {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("hash_tx is required"))
+			return
+		}
 
 		alg := req.Algorithm
 		name := req.Name
@@ -258,12 +283,18 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		// read through the same layer — do NOT wrap again (double-encryption).
 		stor := c.stor
 
-		net, err := network.NewClient(c.env.Communication, myid, another, c.logger.With("component", "network"), c.Conn)
+		// Per-round relay subjects (scoped by the tx hash) — must match the
+		// sender's so the two halves rendezvous, and so rounds never collide.
+		net, err := network.NewClient(
+			c.env.Communication,
+			myid+"/cosign/"+req.HashTx, another+"/cosign/"+req.HashTx,
+			c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network", "error", err)
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("network setup failed: %w", err))
 			return
 		}
+		defer net.Done()
 
 		switch alg {
 		case "ecdsa":
@@ -333,7 +364,10 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
-			sigEthereum, err := mpccmp.GetSigByte(sig)
+			// Ethereum format r||s||v (low-s, recovery id) so the node can
+			// recover the sender. GetSigByte returns CMP-native R||S, which a
+			// node cannot verify.
+			sigEthereum, err := mpccmp.SigEthereum(sig)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get signature bytes: %v", err))
 				return
@@ -344,6 +378,14 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			// Return the signature immediately; refresh the consumed
 			// presignature in the background (interactive round with the peer).
 			go c.rotateECDSAPresign(name, myid, another, tx.HashTx, config)
+
+			net0, idx0 := parseAccountName(name)
+			c.recordCosign(CosignEvent{
+				Role: "acceptor", Status: "completed",
+				Network: net0, Index: idx0, Escrow: address,
+				To: req.To, Amount: req.Amount, Hash: tx.HashTx,
+				Signature: completeSignature, TxData: req.TxData,
+			})
 
 			response := AcceptWithdrawalTxResponse{
 				Status:            "completed",

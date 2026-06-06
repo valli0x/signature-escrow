@@ -27,6 +27,10 @@ type SendTransactionRequest struct {
 	Signature string `json:"signature"`
 	ChainID   int64  `json:"chain_id,omitempty"`
 	NodeURL   string `json:"node_url,omitempty"`
+	// TxData is the RLP of the EXACT unsigned tx whose hash was signed
+	// (from /tx/hash). When present, it is broadcast verbatim with the
+	// signature applied — the only correct way to send an MPC-signed tx.
+	TxData string `json:"tx_data,omitempty"`
 }
 
 type SendTransactionResponse struct {
@@ -55,8 +59,13 @@ func (c *Client) sendTransaction() http.HandlerFunc {
 			return
 		}
 
-		if req.Network == "" || req.From == "" || req.To == "" || req.Value == "" || req.Signature == "" {
-			respondError(w, http.StatusBadRequest, errors.New("network, from, to, value and signature are required"))
+		if req.Network == "" || req.Signature == "" {
+			respondError(w, http.StatusBadRequest, errors.New("network and signature are required"))
+			return
+		}
+		// Without tx_data we still need the legacy fields to rebuild the tx.
+		if req.TxData == "" && (req.From == "" || req.To == "" || req.Value == "") {
+			respondError(w, http.StatusBadRequest, errors.New("from, to and value are required when tx_data is absent"))
 			return
 		}
 
@@ -80,6 +89,12 @@ func (c *Client) sendTransaction() http.HandlerFunc {
 			return
 		}
 
+		c.recordCosign(CosignEvent{
+			Role: "broadcast", Status: "broadcast",
+			Network: network, To: req.To, Amount: req.Value,
+			TxHash: response.TxHash,
+		})
+
 		respondOk(w, response)
 	}
 }
@@ -87,6 +102,59 @@ func (c *Client) sendTransaction() http.HandlerFunc {
 func (c *Client) sendEthereumTransaction(req SendTransactionRequest) (SendTransactionResponse, error) {
 	response := SendTransactionResponse{
 		Status: "processing",
+	}
+
+	// Preferred path: broadcast the EXACT signed transaction. tx_data is the RLP
+	// of the unsigned tx whose hash was signed; applying the signature here and
+	// sending it verbatim guarantees the signature matches (no nonce/gas drift).
+	if req.TxData != "" {
+		raw, err := hex.DecodeString(strings.TrimPrefix(req.TxData, "0x"))
+		if err != nil {
+			return response, fmt.Errorf("invalid tx_data: %v", err)
+		}
+		tx := new(types.Transaction)
+		if err := tx.UnmarshalBinary(raw); err != nil {
+			return response, fmt.Errorf("decode tx_data: %v", err)
+		}
+		sigB, err := hex.DecodeString(strings.TrimPrefix(req.Signature, "0x"))
+		if err != nil {
+			return response, fmt.Errorf("invalid signature format: %v", err)
+		}
+
+		// NOTE: do NOT trust tx.ChainId() here — for an UNSIGNED legacy tx it
+		// returns a garbage value. The hash was created with chainId 1 (see
+		// createTxHash); honour req.ChainID only if explicitly provided.
+		chainID := big.NewInt(1)
+		if req.ChainID != 0 {
+			chainID = big.NewInt(req.ChainID)
+		}
+
+		signedTx, err := tx.WithSignature(types.NewLondonSigner(chainID), sigB)
+		if err != nil {
+			return response, fmt.Errorf("failed to apply signature: %v", err)
+		}
+
+		nodeURL := req.NodeURL
+		if nodeURL == "" {
+			nodeURL = c.env.EthereumRPC
+			if nodeURL == "" {
+				nodeURL = "https://ethereum-rpc.publicnode.com"
+			}
+		}
+		ethClient, err := ethclient.Dial(nodeURL)
+		if err != nil {
+			return response, fmt.Errorf("failed to connect to Ethereum node: %v", err)
+		}
+		defer ethClient.Close()
+
+		if err := ethClient.SendTransaction(context.Background(), signedTx); err != nil {
+			return response, fmt.Errorf("failed to send transaction to network: %v", err)
+		}
+		response.Status = "sent"
+		response.TxHash = signedTx.Hash().Hex()
+		response.Message = "Transaction broadcast successfully"
+		c.logger.Info("Ethereum tx broadcast (tx_data)", "tx_hash", response.TxHash)
+		return response, nil
 	}
 
 	if !common.IsHexAddress(req.From) {
