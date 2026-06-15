@@ -39,6 +39,7 @@ func (c *Client) routes() *chi.Mux {
 			r.Get("/list", c.listExchanges())
 			r.Post("/create", c.createExchange())
 			r.Post("/update", c.updateExchange())
+			r.Post("/upsert", c.upsertExchange())
 			r.Post("/delete", c.deleteExchange())
 		})
 

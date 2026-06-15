@@ -15,13 +15,15 @@ import (
 
 const exchangesKey = "exchanges/all"
 
-// Exchange links two escrow addresses (any ETH/BTC) for a swap. Business state
-// lives here on the client; the app is just a thin UI over these endpoints.
+// Exchange links two escrow addresses (any ETH/BTC) for a swap, shared between
+// two participants. Business state lives here on the client.
 type Exchange struct {
 	ID        string `json:"id"`
 	AddressA  string `json:"address_a"`
 	AddressB  string `json:"address_b"`
-	CreatedAt int64  `json:"created_at"` // unix ms
+	Partner   string `json:"partner"` // ETH address of the other participant
+	Status    string `json:"status"`  // draft | proposed | accepted
+	CreatedAt int64  `json:"created_at"`
 }
 
 type ExchangeListResponse struct {
@@ -34,11 +36,24 @@ type ExchangeCreateRequest struct {
 	AddressB string `json:"address_b"`
 }
 
-// ExchangeUpdateRequest updates an existing exchange's addresses.
+// ExchangeUpdateRequest updates an existing exchange. partner/status are
+// applied only when non-empty (e.g. when proposing to a partner).
 type ExchangeUpdateRequest struct {
 	ID       string `json:"id"`
 	AddressA string `json:"address_a"`
 	AddressB string `json:"address_b"`
+	Partner  string `json:"partner,omitempty"`
+	Status   string `json:"status,omitempty"`
+}
+
+// ExchangeUpsertRequest create-or-replaces an exchange by id (used by the
+// acceptor to import a proposed exchange under the same id).
+type ExchangeUpsertRequest struct {
+	ID       string `json:"id"`
+	AddressA string `json:"address_a"`
+	AddressB string `json:"address_b"`
+	Partner  string `json:"partner"`
+	Status   string `json:"status"`
 }
 
 // ExchangeDeleteRequest identifies an exchange to delete.
@@ -170,6 +185,12 @@ func (c *Client) updateExchange() http.HandlerFunc {
 			if list[i].ID == req.ID {
 				list[i].AddressA = req.AddressA
 				list[i].AddressB = req.AddressB
+				if req.Partner != "" {
+					list[i].Partner = req.Partner
+				}
+				if req.Status != "" {
+					list[i].Status = req.Status
+				}
 				updated = &list[i]
 				break
 			}
@@ -184,6 +205,66 @@ func (c *Client) updateExchange() http.HandlerFunc {
 			return
 		}
 		respondOk(w, *updated)
+	}
+}
+
+// upsertExchange creates or replaces an exchange by id (acceptor imports a
+// proposed exchange under the initiator's id).
+//
+//	@Summary	Upsert exchange
+//	@Tags		exchanges
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		ExchangeUpsertRequest	true	"Exchange"
+//	@Success	200		{object}	Exchange
+//	@Router		/v1/exchanges/upsert [post]
+func (c *Client) upsertExchange() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req ExchangeUpsertRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
+			return
+		}
+		if req.ID == "" {
+			respondError(w, http.StatusBadRequest, errors.New("id is required"))
+			return
+		}
+
+		list, err := c.loadExchanges()
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
+			return
+		}
+
+		var found *Exchange
+		for i := range list {
+			if list[i].ID == req.ID {
+				list[i].AddressA = req.AddressA
+				list[i].AddressB = req.AddressB
+				list[i].Partner = req.Partner
+				list[i].Status = req.Status
+				found = &list[i]
+				break
+			}
+		}
+		if found == nil {
+			ex := Exchange{
+				ID:        req.ID,
+				AddressA:  req.AddressA,
+				AddressB:  req.AddressB,
+				Partner:   req.Partner,
+				Status:    req.Status,
+				CreatedAt: time.Now().UnixMilli(),
+			}
+			list = append([]Exchange{ex}, list...)
+			found = &list[0]
+		}
+
+		if err := c.saveExchanges(list); err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save exchange"))
+			return
+		}
+		respondOk(w, *found)
 	}
 }
 
