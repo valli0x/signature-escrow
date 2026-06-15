@@ -53,6 +53,12 @@ func (c *Client) routes() *chi.Mux {
 			r.Post("/send", c.sendTransaction())
 		})
 
+		r.Route("/aliases", func(r chi.Router) {
+			r.Get("/list", c.listAliases())
+			r.Post("/set", c.setAlias())
+			r.Post("/delete", c.deleteAlias())
+		})
+
 		r.Route("/cosign", func(r chi.Router) {
 			r.Get("/history", c.listCosignHistory())
 			r.Post("/history/clear", c.clearCosignHistory())
