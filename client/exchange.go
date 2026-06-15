@@ -15,15 +15,21 @@ import (
 
 const exchangesKey = "exchanges/all"
 
-// Exchange links two escrow addresses (any ETH/BTC) for a swap, shared between
-// two participants. Business state lives here on the client.
+// Exchange links two escrow accounts for a swap. Each side (A, B) is an escrow
+// account that has its OWN partner (the 2-of-2 counterpart), so the two sides
+// can involve different partners. Each side tracks its own invite status.
 type Exchange struct {
-	ID        string `json:"id"`
-	AddressA  string `json:"address_a"`
-	AddressB  string `json:"address_b"`
-	Partner   string `json:"partner"` // ETH address of the other participant
-	Status    string `json:"status"`  // draft | proposed | accepted
-	CreatedAt int64  `json:"created_at"`
+	ID string `json:"id"`
+
+	AddressA string `json:"address_a"`
+	PartnerA string `json:"partner_a"` // counterpart of escrow A
+	StatusA  string `json:"status_a"`  // "" | invited | accepted
+
+	AddressB string `json:"address_b"`
+	PartnerB string `json:"partner_b"`
+	StatusB  string `json:"status_b"`
+
+	CreatedAt int64 `json:"created_at"`
 }
 
 type ExchangeListResponse struct {
@@ -36,24 +42,27 @@ type ExchangeCreateRequest struct {
 	AddressB string `json:"address_b"`
 }
 
-// ExchangeUpdateRequest updates an existing exchange. partner/status are
-// applied only when non-empty (e.g. when proposing to a partner).
+// ExchangeUpdateRequest updates an existing exchange. Per-side fields are
+// applied only when non-empty.
 type ExchangeUpdateRequest struct {
 	ID       string `json:"id"`
 	AddressA string `json:"address_a"`
+	PartnerA string `json:"partner_a,omitempty"`
+	StatusA  string `json:"status_a,omitempty"`
 	AddressB string `json:"address_b"`
-	Partner  string `json:"partner,omitempty"`
-	Status   string `json:"status,omitempty"`
+	PartnerB string `json:"partner_b,omitempty"`
+	StatusB  string `json:"status_b,omitempty"`
 }
 
-// ExchangeUpsertRequest create-or-replaces an exchange by id (used by the
-// acceptor to import a proposed exchange under the same id).
+// ExchangeUpsertRequest create-or-replaces an exchange by id (acceptor import).
 type ExchangeUpsertRequest struct {
 	ID       string `json:"id"`
 	AddressA string `json:"address_a"`
+	PartnerA string `json:"partner_a"`
+	StatusA  string `json:"status_a"`
 	AddressB string `json:"address_b"`
-	Partner  string `json:"partner"`
-	Status   string `json:"status"`
+	PartnerB string `json:"partner_b"`
+	StatusB  string `json:"status_b"`
 }
 
 // ExchangeDeleteRequest identifies an exchange to delete.
@@ -185,11 +194,17 @@ func (c *Client) updateExchange() http.HandlerFunc {
 			if list[i].ID == req.ID {
 				list[i].AddressA = req.AddressA
 				list[i].AddressB = req.AddressB
-				if req.Partner != "" {
-					list[i].Partner = req.Partner
+				if req.PartnerA != "" {
+					list[i].PartnerA = req.PartnerA
 				}
-				if req.Status != "" {
-					list[i].Status = req.Status
+				if req.StatusA != "" {
+					list[i].StatusA = req.StatusA
+				}
+				if req.PartnerB != "" {
+					list[i].PartnerB = req.PartnerB
+				}
+				if req.StatusB != "" {
+					list[i].StatusB = req.StatusB
 				}
 				updated = &list[i]
 				break
@@ -240,9 +255,11 @@ func (c *Client) upsertExchange() http.HandlerFunc {
 		for i := range list {
 			if list[i].ID == req.ID {
 				list[i].AddressA = req.AddressA
+				list[i].PartnerA = req.PartnerA
+				list[i].StatusA = req.StatusA
 				list[i].AddressB = req.AddressB
-				list[i].Partner = req.Partner
-				list[i].Status = req.Status
+				list[i].PartnerB = req.PartnerB
+				list[i].StatusB = req.StatusB
 				found = &list[i]
 				break
 			}
@@ -251,9 +268,11 @@ func (c *Client) upsertExchange() http.HandlerFunc {
 			ex := Exchange{
 				ID:        req.ID,
 				AddressA:  req.AddressA,
+				PartnerA:  req.PartnerA,
+				StatusA:   req.StatusA,
 				AddressB:  req.AddressB,
-				Partner:   req.Partner,
-				Status:    req.Status,
+				PartnerB:  req.PartnerB,
+				StatusB:   req.StatusB,
 				CreatedAt: time.Now().UnixMilli(),
 			}
 			list = append([]Exchange{ex}, list...)
