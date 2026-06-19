@@ -57,13 +57,21 @@ Three independent processes. Same binary, role chosen by the `MODE` env var.
 - `POST /v1/accounts/get` — fetch a single account by `network + index`
 
 ### Transactions and balance
-- ETH: `checkBalance`, `waitForBalance`, `createTxHash`, `sendTransaction`
-- BTC: BlockCypher integration
-- Incomplete-signature flow: one side initiates the withdrawal, the other accepts and finishes the signature
+- ETH: `checkBalance` (`expected: 0` for a pure query), `createTxHash` (returns `hash` + `tx_data`),
+  `sendTransaction` (broadcasts the EXACT `tx_data` with `WithSignature`), `decodeTx` (verify what you sign)
+- BTC: BlockCypher integration; default ETH RPC `ethereum-rpc.publicnode.com` (override `ETHEREUM_RPC`)
+
+### MPC co-signing (withdrawal)
+- One side initiates (`/incomplete-signature/send`), the other completes (`/incomplete-signature/accept`),
+  returning an Ethereum-format signature (`mpccmp.SigEthereum`, r‖s‖v). Per-hash relay subjects; single-use
+  presignatures rotated in the background.
+- **Security:** the acceptor refuses to sign unless `keccak(tx_data)` equals the hash — so the displayed and
+  signed transactions are provably the same. Activity log via `/v1/cosign/*`.
 
 ### Escrow / Timebox
-- Inherited from the original `escrowbox`: pollination-style signature exchange
-- Timebox for delayed delivery
+- Pollination-style fair exchange (`/v1/escrow`, poll with `/v1/escrow/check`): two parties deposit; each side's
+  signature is released only when both validate. App drives it as an **atomic swap** from an accepted Exchange.
+- Timebox: time-locked unilateral fallback if the counterparty never deposits (not yet wired in the app).
 
 ### Storage
 - File-based, CBOR-serialized
