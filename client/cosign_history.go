@@ -32,7 +32,11 @@ type CosignEvent struct {
 	TxData    string `json:"tx_data,omitempty"` // RLP of the unsigned tx (for broadcast)
 	TxHash    string `json:"tx_hash,omitempty"`
 	Error     string `json:"error,omitempty"`
-	CreatedAt int64  `json:"created_at"` // unix ms
+	// Escrow (atomic swap) fields: when set, the signature is exchanged via the
+	// server pollination escrow under EscrowID, keyed by the account Pub.
+	EscrowID string `json:"escrow_id,omitempty"`
+	Pub      string `json:"pub,omitempty"` // escrow account public key (33-byte compressed hex)
+	CreatedAt int64 `json:"created_at"`    // unix ms
 }
 
 type CosignHistoryResponse struct {

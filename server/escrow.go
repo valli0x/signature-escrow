@@ -258,3 +258,64 @@ func (s *Server) escrow() http.HandlerFunc {
 	}
 }
 
+// EscrowCheckRequest polls a pollination's status for a given pub.
+type EscrowCheckRequest struct {
+	ID  string `json:"id"`
+	Pub string `json:"pub"`
+}
+
+// escrowCheck returns the released counterparty signature for {id, pub} once
+// both flowers are present and valid; otherwise "pending". Read-only (no deposit).
+//
+//	@Summary	Check/poll an escrow pollination
+//	@Tags		escrow
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		EscrowCheckRequest	true	"id + pub"
+//	@Success	200		{object}	map[string]interface{}
+//	@Security	BearerAuth
+//	@Router		/v1/escrow/check [post]
+func (s *Server) escrowCheck() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req EscrowCheckRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request"))
+			return
+		}
+		if req.ID == "" || req.Pub == "" {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("id and pub are required"))
+			return
+		}
+		pubB, err := hex.DecodeString(req.Pub)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid pub hex"))
+			return
+		}
+		p, err := getPollination(req.ID, s.stor)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
+			return
+		}
+		if p == nil || p.flower1 == nil || p.flower2 == nil {
+			respondOk(w, map[string]any{"status": "pending"})
+			return
+		}
+		pollinated, err := p.pollinate()
+		if err != nil || !pollinated {
+			respondOk(w, map[string]any{"status": "pending"})
+			return
+		}
+		var theirSig []byte
+		switch {
+		case string(p.flower1.Pub) == string(pubB):
+			theirSig = p.flower2.Sig
+		case string(p.flower2.Pub) == string(pubB):
+			theirSig = p.flower1.Sig
+		}
+		respondOk(w, map[string]any{
+			"status":    "complete",
+			"signature": base64.StdEncoding.EncodeToString(theirSig),
+		})
+	}
+}
+

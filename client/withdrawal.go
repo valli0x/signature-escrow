@@ -31,6 +31,10 @@ type SendWithdrawalTxRequest struct {
 	To     string `json:"to,omitempty"`
 	Amount string `json:"amount,omitempty"`
 	TxData string `json:"tx_data,omitempty"`
+	// Escrow (atomic swap): when EscrowID is set, the initiator records an
+	// escrow-await event so the signature is exchanged via the server escrow.
+	EscrowID string `json:"escrow_id,omitempty"`
+	Pub      string `json:"pub,omitempty"`
 }
 
 type SendWithdrawalTxResponse struct {
@@ -186,11 +190,15 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			go c.rotateECDSAPresign(name, myid, another, hashTxWithdrawal, config)
 
 			net0, idx0 := parseAccountName(name)
+			status0 := "sent"
+			if req.EscrowID != "" {
+				status0 = "escrow-await" // signature will arrive via server escrow
+			}
 			c.recordCosign(CosignEvent{
-				Role: "initiator", Status: "sent",
+				Role: "initiator", Status: status0,
 				Network: net0, Index: idx0, Escrow: escrowAddress,
 				To: req.To, Amount: req.Amount, Hash: hashTxWithdrawal,
-				TxData: req.TxData,
+				TxData: req.TxData, EscrowID: req.EscrowID, Pub: req.Pub,
 			})
 
 			response := SendWithdrawalTxResponse{

@@ -54,6 +54,7 @@ func (s *Server) routes() *chi.Mux {
 			})
 
 			r.Post("/escrow", s.escrow())
+			r.Post("/escrow/check", s.escrowCheck())
 
 			r.Route("/timebox", func(r chi.Router) {
 				r.Post("/", s.timeboxPost())
