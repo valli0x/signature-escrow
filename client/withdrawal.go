@@ -62,6 +62,9 @@ type AcceptWithdrawalTxRequest struct {
 	To     string `json:"to,omitempty"`
 	Amount string `json:"amount,omitempty"`
 	TxData string `json:"tx_data,omitempty"`
+	// EscrowID: when set, this accept is part of an atomic swap. We co-sign at
+	// most ONCE per swap — a second accept for the same id is rejected.
+	EscrowID string `json:"escrow_id,omitempty"`
 }
 
 type AcceptWithdrawalTxResponse struct {
@@ -292,6 +295,20 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
+		// SECURITY: one co-sign per swap. If we already completed an accept for
+		// this escrow_id, refuse — prevents being tricked into co-signing a
+		// SECOND withdrawal (draining another account) under the same swap.
+		if req.EscrowID != "" {
+			for _, ev := range c.loadCosignHistory() {
+				if ev.Role == "acceptor" && ev.EscrowID == req.EscrowID &&
+					ev.Status == "completed" {
+					respondError(w, http.StatusConflict, fmt.Errorf(
+						"already co-signed once for this swap (escrow_id=%s) — refusing a second signature", req.EscrowID))
+					return
+				}
+			}
+		}
+
 		// keygen wrote via c.stor (already encrypted when STORAGE_PASS is set);
 		// read through the same layer — do NOT wrap again (double-encryption).
 		stor := c.stor
@@ -421,6 +438,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				Network: net0, Index: idx0, Escrow: address,
 				To: req.To, Amount: req.Amount, Hash: tx.HashTx,
 				Signature: completeSignature, TxData: req.TxData,
+				EscrowID: req.EscrowID,
 			})
 
 			response := AcceptWithdrawalTxResponse{
