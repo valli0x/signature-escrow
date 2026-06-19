@@ -178,3 +178,55 @@ func (c *Client) createBitcoinTxHash(req TxHashRequest) (TxHashResponse, error) 
 
 	return response, nil
 }
+
+// TxDecodeRequest decodes an unsigned tx_data (RLP) for verification display.
+type TxDecodeRequest struct {
+	Network string `json:"network"`
+	TxData  string `json:"tx_data"`
+}
+
+// decodeTx returns the authoritative fields of an unsigned tx_data so the
+// acceptor can SEE what they are about to co-sign (instead of trusting the
+// initiator's display fields).
+//
+//	@Summary	Decode unsigned tx_data
+//	@Tags		tx
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		TxDecodeRequest	true	"network + tx_data"
+//	@Success	200		{object}	map[string]interface{}
+//	@Router		/v1/tx/decode [post]
+func (c *Client) decodeTx() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req TxDecodeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request"))
+			return
+		}
+		if req.TxData == "" {
+			respondError(w, http.StatusBadRequest, errors.New("tx_data is required"))
+			return
+		}
+		raw, err := hex.DecodeString(strings.TrimPrefix(req.TxData, "0x"))
+		if err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid tx_data hex"))
+			return
+		}
+		tx := new(types.Transaction)
+		if err := tx.UnmarshalBinary(raw); err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("decode tx_data: %v", err))
+			return
+		}
+		to := ""
+		if tx.To() != nil {
+			to = tx.To().Hex()
+		}
+		respondOk(w, map[string]any{
+			"to":        to,
+			"value":     tx.Value().String(),
+			"nonce":     tx.Nonce(),
+			"gas":       tx.Gas(),
+			"gas_price": tx.GasPrice().String(),
+		})
+	}
+}

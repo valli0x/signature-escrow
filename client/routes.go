@@ -51,6 +51,7 @@ func (c *Client) routes() *chi.Mux {
 		r.Route("/tx", func(r chi.Router) {
 			r.Post("/hash", c.createTxHash())
 			r.Post("/send", c.sendTransaction())
+			r.Post("/decode", c.decodeTx())
 		})
 
 		r.Route("/aliases", func(r chi.Router) {

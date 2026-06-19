@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/taurusgroup/multi-party-sig/pkg/party"
 	"github.com/taurusgroup/multi-party-sig/pkg/pool"
@@ -327,6 +330,29 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			if err := json.Unmarshal(msg.Data, &tx); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal message: %v", err))
 				return
+			}
+
+			// SECURITY: only co-sign a hash that provably matches the tx_data we
+			// were shown. Otherwise the initiator could DISPLAY a benign transfer
+			// while asking us to sign a different transaction (e.g. draining the
+			// escrow). Recompute the signing hash from tx_data and compare.
+			if req.TxData != "" {
+				raw, err := hex.DecodeString(strings.TrimPrefix(req.TxData, "0x"))
+				if err != nil {
+					respondError(w, http.StatusBadRequest, fmt.Errorf("invalid tx_data: %v", err))
+					return
+				}
+				etx := new(ethtypes.Transaction)
+				if err := etx.UnmarshalBinary(raw); err != nil {
+					respondError(w, http.StatusBadRequest, fmt.Errorf("decode tx_data: %v", err))
+					return
+				}
+				want := ethtypes.NewLondonSigner(big.NewInt(1)).Hash(etx)
+				if !strings.EqualFold(hex.EncodeToString(want.Bytes()), tx.HashTx) {
+					respondError(w, http.StatusBadRequest, errors.New(
+						"refusing to sign: tx hash does not match tx_data (possible tampering)"))
+					return
+				}
 			}
 
 			config := mpccmp.EmptyConfig()
