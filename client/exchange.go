@@ -29,6 +29,10 @@ type Exchange struct {
 	PartnerB string `json:"partner_b"`
 	StatusB  string `json:"status_b"`
 
+	// Creator (ETH addr) withdraws from escrow A; the other party withdraws
+	// from escrow B. Binds each escrow account to one withdrawer.
+	Creator string `json:"creator"`
+
 	CreatedAt int64 `json:"created_at"`
 }
 
@@ -52,6 +56,7 @@ type ExchangeUpdateRequest struct {
 	AddressB string `json:"address_b"`
 	PartnerB string `json:"partner_b,omitempty"`
 	StatusB  string `json:"status_b,omitempty"`
+	Creator  string `json:"creator,omitempty"`
 }
 
 // ExchangeUpsertRequest create-or-replaces an exchange by id (acceptor import).
@@ -63,6 +68,7 @@ type ExchangeUpsertRequest struct {
 	AddressB string `json:"address_b"`
 	PartnerB string `json:"partner_b"`
 	StatusB  string `json:"status_b"`
+	Creator  string `json:"creator"`
 }
 
 // ExchangeDeleteRequest identifies an exchange to delete.
@@ -206,6 +212,9 @@ func (c *Client) updateExchange() http.HandlerFunc {
 				if req.StatusB != "" {
 					list[i].StatusB = req.StatusB
 				}
+				if req.Creator != "" {
+					list[i].Creator = req.Creator
+				}
 				updated = &list[i]
 				break
 			}
@@ -260,6 +269,7 @@ func (c *Client) upsertExchange() http.HandlerFunc {
 				list[i].AddressB = req.AddressB
 				list[i].PartnerB = req.PartnerB
 				list[i].StatusB = req.StatusB
+				list[i].Creator = req.Creator
 				found = &list[i]
 				break
 			}
@@ -273,6 +283,7 @@ func (c *Client) upsertExchange() http.HandlerFunc {
 				AddressB:  req.AddressB,
 				PartnerB:  req.PartnerB,
 				StatusB:   req.StatusB,
+				Creator:   req.Creator,
 				CreatedAt: time.Now().UnixMilli(),
 			}
 			list = append([]Exchange{ex}, list...)
