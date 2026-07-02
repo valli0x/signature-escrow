@@ -38,9 +38,10 @@ type LoginResponse struct {
 }
 
 type IdentityResponse struct {
-	Address string `json:"address"`
-	HasKeys bool   `json:"has_keys"`
-	Bound   bool   `json:"bound"`
+	Address      string `json:"address"`
+	HasKeys      bool   `json:"has_keys"`
+	Bound        bool   `json:"bound"`
+	AuthRequired bool   `json:"auth_required"`
 }
 
 func normAddr(a string) string {
@@ -195,7 +196,7 @@ func (c *Client) identity() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := c.keyIdentity()
 		own := c.owner()
-		respondOk(w, IdentityResponse{Address: own, HasKeys: id != "", Bound: own != ""})
+		respondOk(w, IdentityResponse{Address: own, HasKeys: id != "", Bound: own != "", AuthRequired: c.authEnabled})
 	}
 }
 

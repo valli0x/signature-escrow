@@ -29,8 +29,10 @@ func (c *Client) routes() *chi.Mux {
 		r.Get("/identity", c.identity())
 
 		r.Group(func(r chi.Router) {
-			r.Use(auth.Middleware(c.jwtSecret))
-			r.Use(c.ownerGuard)
+			if c.authEnabled {
+				r.Use(auth.Middleware(c.jwtSecret))
+				r.Use(c.ownerGuard)
+			}
 
 			r.Route("/keygen", func(r chi.Router) {
 				r.Post("/ecdsa", c.keygenECDSA())

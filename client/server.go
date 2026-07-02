@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,7 @@ type Client struct {
 	Conn        *grpc.ClientConn
 	jwtSecret   []byte
 	nonceStore  *auth.NonceStore
+	authEnabled bool
 }
 
 type ClientConfig struct {
@@ -45,6 +47,16 @@ type ClientConfig struct {
 	StoragePass string
 	Conn        *grpc.ClientConn
 	JWTSecret   string
+	ClientAuth  string
+}
+
+func authOn(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "none", "off", "false", "0", "no", "disabled", "disable":
+		return false
+	default:
+		return true
+	}
 }
 
 func clientSecret(jwt, storagePass string) []byte {
@@ -78,6 +90,7 @@ func NewClient(cfg *ClientConfig) *Client {
 		Conn:        cfg.Conn,
 		jwtSecret:   clientSecret(cfg.JWTSecret, cfg.StoragePass),
 		nonceStore:  auth.NewNonceStore(),
+		authEnabled: authOn(cfg.ClientAuth),
 	}
 
 	c.srv.Handler = c.routes()

@@ -118,3 +118,36 @@ func TestClientAuthOwnerBinding(t *testing.T) {
 		t.Fatalf("owner re-login failed: %d", code)
 	}
 }
+
+func TestClientAuthDisabled(t *testing.T) {
+	dir := t.TempDir()
+	stor, err := storage.NewFileStorage(map[string]string{"path": dir}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient(&ClientConfig{
+		Addr:        ":0",
+		Stor:        stor,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Env:         &config.Env{},
+		StoragePass: "p",
+		JWTSecret:   "s",
+		ClientAuth:  "none",
+	})
+	ts := httptest.NewServer(c.routes())
+	defer ts.Close()
+
+	resp, _ := http.Get(ts.URL + "/v1/accounts/list")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 without token when auth disabled, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp, _ = http.Get(ts.URL + "/v1/identity")
+	var id IdentityResponse
+	json.NewDecoder(resp.Body).Decode(&id)
+	resp.Body.Close()
+	if id.AuthRequired {
+		t.Fatalf("expected auth_required=false when disabled")
+	}
+}

@@ -142,13 +142,13 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
-			incsig, err := mpccmp.CMPPreSignOnlineInc(config, presign, hashB, pl)
+			incSig, err := mpccmp.CMPPreSignOnlineInc(config, presign, hashB, pl)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create incomplete signature: %v", err))
 				return
 			}
 
-			incsigHex, err := mpccmp.MsgToHex(incsig)
+			incSigHex, err := mpccmp.MsgToHex(incSig)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to convert signature to hex: %v", err))
 				return
@@ -158,7 +158,7 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 				IncSig string `json:"inc_sig"`
 				HashTx string `json:"hash_tx"`
 			}{
-				IncSig: incsigHex,
+				IncSig: incSigHex,
 				HashTx: hashTxWithdrawal,
 			}
 
@@ -361,7 +361,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
-			incsig, err := mpccmp.HexToMsg(tx.IncSig)
+			incSig, err := mpccmp.HexToMsg(tx.IncSig)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to convert hex to message: %v", err))
 				return
@@ -370,7 +370,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			pl := pool.NewPool(0)
 			defer pl.TearDown()
 
-			sig, err := mpccmp.CMPPreSignOnlineCoSign(config, presign, hashB, incsig, pl)
+			sig, err := mpccmp.CMPPreSignOnlineCoSign(config, presign, hashB, incSig, pl)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to complete signature: %v", err))
 				return

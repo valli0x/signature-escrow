@@ -9,6 +9,7 @@ type Env struct {
 	JWTSecret  string
 
 	ClientAddr string
+	ClientAuth string
 
 	Communication string
 	NatsURL       string
@@ -29,6 +30,7 @@ func LoadFromEnv() *Env {
 		JWTSecret:  getenv("JWT_SECRET", ""),
 
 		ClientAddr: getenv("CLIENT_ADDR", ":8080"),
+		ClientAuth: getenv("CLIENT_AUTH", "on"),
 
 		Communication: getenv("COMMUNICATION_ADDR", "localhost:6379"),
 		NatsURL:       getenv("NATS_URL", "nats://localhost:4222"),
