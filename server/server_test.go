@@ -89,14 +89,12 @@ func TestAuthFlow(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.Close()
 
-	// Generate test Ethereum key
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 	address := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
 
-	// Step 1: Get nonce
 	resp, result, err := postJSON(ts.URL+"/v1/auth/nonce", map[string]string{
 		"address": address,
 	}, "")
@@ -112,17 +110,14 @@ func TestAuthFlow(t *testing.T) {
 	t.Logf("nonce: %s", nonce)
 	t.Logf("message: %s", message)
 
-	// Step 2: Sign message with private key (simulates MetaMask personal_sign)
 	msgHash := accounts.TextHash([]byte(message))
 	sig, err := crypto.Sign(msgHash, privateKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// MetaMask adds 27 to v
 	sig[64] += 27
 	signature := "0x" + hex.EncodeToString(sig)
 
-	// Step 3: Login
 	resp, result, err = postJSON(ts.URL+"/v1/auth/login", map[string]string{
 		"address":   address,
 		"signature": signature,
@@ -144,7 +139,6 @@ func TestAuthFlow(t *testing.T) {
 		t.Fatal("empty address in login response")
 	}
 
-	// Step 4: Access protected endpoint without token — should fail
 	resp, result, err = postJSON(ts.URL+"/v1/escrow", map[string]string{
 		"test": "data",
 	}, "")
@@ -156,7 +150,6 @@ func TestAuthFlow(t *testing.T) {
 	}
 	t.Log("escrow without auth correctly rejected")
 
-	// Step 5: Access protected endpoint with token — should work
 	resp, result, err = postJSON(ts.URL+"/v1/escrow", map[string]string{
 		"alg":  "ecdsa",
 		"id":   "test-escrow-id",
@@ -166,7 +159,6 @@ func TestAuthFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// First escrow submission — stores flower, returns 200 with status=pending
 	if resp.StatusCode != 200 {
 		t.Fatalf("escrow first submit: expected 200, got %d: %v", resp.StatusCode, result)
 	}
@@ -180,34 +172,29 @@ func TestEscrowExchange(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.Close()
 
-	// Generate two participants
 	keyA, _ := crypto.GenerateKey()
 	keyB, _ := crypto.GenerateKey()
 	addrA := crypto.PubkeyToAddress(keyA.PublicKey).Hex()
 	addrB := crypto.PubkeyToAddress(keyB.PublicKey).Hex()
 
-	// Auth both
 	tokenA := authenticate(t, ts.URL, keyA, addrA)
 	tokenB := authenticate(t, ts.URL, keyB, addrB)
 
-	// Common escrow data
 	escrowID := "test-escrow-exchange"
 	hashA := crypto.Keccak256([]byte("tx-data-A"))
 	hashB := crypto.Keccak256([]byte("tx-data-B"))
 	pubA := crypto.CompressPubkey(&keyA.PublicKey)
 	pubB := crypto.CompressPubkey(&keyB.PublicKey)
 
-	// A signs B's hash, B signs A's hash (cross-signatures for escrow)
-	sigAforB, _ := crypto.Sign(hashB, keyA) // A signs B's hash
-	sigBforA, _ := crypto.Sign(hashA, keyB) // B signs A's hash
+	sigAforB, _ := crypto.Sign(hashB, keyA)
+	sigBforA, _ := crypto.Sign(hashA, keyB)
 
-	// Step 1: A submits flower
 	resp, result, err := postJSON(ts.URL+"/v1/escrow", map[string]string{
 		"alg":  "ecdsa",
 		"id":   escrowID,
 		"pub":  hex.EncodeToString(pubA),
 		"hash": hex.EncodeToString(hashA),
-		"sig":  hex.EncodeToString(sigBforA), // B's signature over A's hash
+		"sig":  hex.EncodeToString(sigBforA),
 	}, tokenA)
 	if err != nil {
 		t.Fatal(err)
@@ -220,24 +207,18 @@ func TestEscrowExchange(t *testing.T) {
 	}
 	t.Log("A submitted flower (pending)")
 
-	// Step 2: B submits flower → pollination should complete and return both signatures
 	resp, result, err = postJSON(ts.URL+"/v1/escrow", map[string]string{
 		"alg":  "ecdsa",
 		"id":   escrowID,
 		"pub":  hex.EncodeToString(pubB),
 		"hash": hex.EncodeToString(hashB),
-		"sig":  hex.EncodeToString(sigAforB), // A's signature over B's hash
+		"sig":  hex.EncodeToString(sigAforB),
 	}, tokenB)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("B submit response: status=%d body=%v", resp.StatusCode, result)
 
-	// NOTE: go-ethereum's crypto.Sign produces 65-byte sigs that the
-	// multi-party-sig validator rejects (it expects the CMP/Schnorr layout).
-	// We can't fully drive the success path with these dummy keys — but
-	// when the response IS "complete", we assert it carries the partner's
-	// signature (the caller's own sig is not echoed back).
 	if resp.StatusCode == 200 {
 		if status, _ := result["status"].(string); status == "complete" {
 			sig, ok := result["signature"].(string)
@@ -253,7 +234,6 @@ func TestPairingFlow(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.Close()
 
-	// Two participants
 	keyA, _ := crypto.GenerateKey()
 	keyB, _ := crypto.GenerateKey()
 	addrA := crypto.PubkeyToAddress(keyA.PublicKey).Hex()
@@ -262,7 +242,6 @@ func TestPairingFlow(t *testing.T) {
 	tokenA := authenticate(t, ts.URL, keyA, addrA)
 	tokenB := authenticate(t, ts.URL, keyB, addrB)
 
-	// Step 1: A creates pair with B
 	resp, result, err := postJSON(ts.URL+"/v1/pair/create", map[string]string{
 		"partner": addrB,
 	}, tokenA)
@@ -280,7 +259,6 @@ func TestPairingFlow(t *testing.T) {
 		t.Fatalf("expected status pending, got %s", result["status"])
 	}
 
-	// Step 2: B sees pending pair
 	resp, result, err = getJSON(ts.URL+"/v1/pair/pending", tokenB)
 	if err != nil {
 		t.Fatal(err)
@@ -294,7 +272,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Logf("B sees incoming pair: %v", incoming[0])
 
-	// A sees outgoing
 	resp, result, err = getJSON(ts.URL+"/v1/pair/pending", tokenA)
 	if err != nil {
 		t.Fatal(err)
@@ -305,7 +282,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Logf("A sees outgoing pair: %v", outgoing[0])
 
-	// Step 3: A tries to accept — should fail (only partner can)
 	resp, _, err = postJSON(ts.URL+"/v1/pair/accept", map[string]string{
 		"id": pairID,
 	}, tokenA)
@@ -317,7 +293,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Log("A correctly cannot accept own pair")
 
-	// Step 4: B accepts
 	resp, result, err = postJSON(ts.URL+"/v1/pair/accept", map[string]string{
 		"id": pairID,
 	}, tokenB)
@@ -332,7 +307,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Logf("pair accepted: id=%s status=%s", result["id"], result["status"])
 
-	// Step 5: Cannot pair with yourself
 	resp, _, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
 		"partner": addrA,
 	}, tokenA)
@@ -344,7 +318,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Log("self-pairing correctly rejected")
 
-	// Step 6: Duplicate pair returns existing
 	resp, result, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
 		"partner": addrB,
 	}, tokenA)
@@ -359,7 +332,6 @@ func TestPairingFlow(t *testing.T) {
 	}
 	t.Log("duplicate pair correctly returns existing")
 
-	// Step 7: Without auth — should fail
 	resp, _, err = postJSON(ts.URL+"/v1/pair/create", map[string]string{
 		"partner": addrB,
 	}, "")
@@ -384,7 +356,6 @@ func TestMailboxFlow(t *testing.T) {
 	tokenA := authenticate(t, ts.URL, keyA, addrA)
 	tokenB := authenticate(t, ts.URL, keyB, addrB)
 
-	// Create pair first
 	resp, result, _ := postJSON(ts.URL+"/v1/pair/create", map[string]string{
 		"partner": addrB,
 	}, tokenA)
@@ -393,10 +364,8 @@ func TestMailboxFlow(t *testing.T) {
 	}
 	pairID := result["id"].(string)
 
-	// Accept pair
 	postJSON(ts.URL+"/v1/pair/accept", map[string]string{"id": pairID}, tokenB)
 
-	// Step 1: A sends keygen request to B via mailbox
 	resp, result, err := postJSON(ts.URL+"/v1/mailbox/send", map[string]interface{}{
 		"to":      addrB,
 		"pair_id": pairID,
@@ -412,7 +381,6 @@ func TestMailboxFlow(t *testing.T) {
 	msgID := result["id"].(string)
 	t.Logf("message sent: id=%s", msgID)
 
-	// Step 2: B checks pending messages
 	resp, result, err = getJSON(ts.URL+"/v1/mailbox/pending", tokenB)
 	if err != nil {
 		t.Fatal(err)
@@ -431,7 +399,6 @@ func TestMailboxFlow(t *testing.T) {
 		t.Fatalf("expected keygen_request, got %s", msg["type"])
 	}
 
-	// Step 3: A should see nothing in their inbox
 	resp, result, _ = getJSON(ts.URL+"/v1/mailbox/pending", tokenA)
 	aMessages := result["messages"].([]interface{})
 	if len(aMessages) != 0 {
@@ -439,7 +406,6 @@ func TestMailboxFlow(t *testing.T) {
 	}
 	t.Log("A inbox correctly empty")
 
-	// Step 4: Non-pair member cannot send to this pair
 	keyC, _ := crypto.GenerateKey()
 	addrC := crypto.PubkeyToAddress(keyC.PublicKey).Hex()
 	tokenC := authenticate(t, ts.URL, keyC, addrC)
@@ -455,7 +421,6 @@ func TestMailboxFlow(t *testing.T) {
 	}
 	t.Log("outsider correctly rejected")
 
-	// Step 5: B acknowledges the message
 	resp, _, err = postJSON(ts.URL+"/v1/mailbox/ack", map[string]string{
 		"id": msgID,
 	}, tokenB)
@@ -466,7 +431,6 @@ func TestMailboxFlow(t *testing.T) {
 		t.Fatalf("mailbox ack: expected 204, got %d", resp.StatusCode)
 	}
 
-	// Verify inbox is now empty
 	resp, result, _ = getJSON(ts.URL+"/v1/mailbox/pending", tokenB)
 	messages = result["messages"].([]interface{})
 	if len(messages) != 0 {
@@ -478,7 +442,6 @@ func TestMailboxFlow(t *testing.T) {
 func authenticate(t *testing.T, baseURL string, key *ecdsa.PrivateKey, address string) string {
 	t.Helper()
 
-	// Get nonce
 	_, result, err := postJSON(baseURL+"/v1/auth/nonce", map[string]string{
 		"address": address,
 	}, "")
@@ -489,7 +452,6 @@ func authenticate(t *testing.T, baseURL string, key *ecdsa.PrivateKey, address s
 	nonce := result["nonce"].(string)
 	message := result["message"].(string)
 
-	// Sign
 	msgHash := accounts.TextHash([]byte(message))
 	sig, err := crypto.Sign(msgHash, key)
 	if err != nil {
@@ -497,7 +459,6 @@ func authenticate(t *testing.T, baseURL string, key *ecdsa.PrivateKey, address s
 	}
 	sig[64] += 27
 
-	// Login
 	_, result, err = postJSON(baseURL+"/v1/auth/login", map[string]string{
 		"address":   address,
 		"signature": fmt.Sprintf("0x%s", hex.EncodeToString(sig)),

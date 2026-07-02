@@ -14,8 +14,6 @@ import (
 	"github.com/valli0x/signature-escrow/validation"
 )
 
-// Escrow data structures
-
 type pollination struct {
 	flower1, flower2 *flower
 	m                sync.Mutex
@@ -108,8 +106,6 @@ func putPollination(id string, p *pollination, stor storage.Storage) error {
 	return stor.Put(context.Background(), id, data)
 }
 
-// Escrow handler
-
 type EscrowRequest struct {
 	Alg  string `json:"alg"`
 	ID   string `json:"id"`
@@ -120,13 +116,12 @@ type EscrowRequest struct {
 
 const (
 	maxEscrowIDLen = 128
-	hashLen        = 32 // Keccak256 / SHA256
-	pubLenECDSA    = 33 // compressed secp256k1
-	pubLenFrost    = 32 // x-only taproot
+	hashLen        = 32
+	pubLenECDSA    = 33
+	pubLenFrost    = 32
 	maxSigLen      = 128
 )
 
-// parseEscrowRequest decodes JSON, validates fields, and returns a flower.
 func parseEscrowRequest(r *http.Request) (*flower, error) {
 	var req EscrowRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -243,10 +238,6 @@ func (s *Server) escrow() http.HandlerFunc {
 				theirSig = p.flower1.Sig
 			}
 
-			// Race с timebox-выводом разрешает сама блокчейн-сеть:
-			// одна транзакция тратит UTXO/nonce, вторая отвалится как
-			// double-spend. Серверу не нужно атомарно гасить timebox.
-
 			respondOk(w, map[string]any{
 				"status":    "complete",
 				"signature": base64.StdEncoding.EncodeToString(theirSig),
@@ -258,7 +249,6 @@ func (s *Server) escrow() http.HandlerFunc {
 	}
 }
 
-// EscrowCheckRequest polls a pollination's status for a given pub.
 type EscrowCheckRequest struct {
 	ID  string `json:"id"`
 	Pub string `json:"pub"`
@@ -318,4 +308,3 @@ func (s *Server) escrowCheck() http.HandlerFunc {
 		})
 	}
 }
-

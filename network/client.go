@@ -41,7 +41,6 @@ func NewClient(address, accept, send string, logger *slog.Logger, conn *grpc.Cli
 		cancel:  cancel,
 	}
 	go client.receiving(ctx)
-	// Wait for subscription to be established before returning
 	<-client.ready
 	return client, nil
 }

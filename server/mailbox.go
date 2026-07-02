@@ -15,13 +15,12 @@ import (
 
 const mailboxPrefix = "mailbox/"
 
-// Message represents a mailbox message between paired participants.
 type Message struct {
 	ID        string          `json:"id"`
 	From      string          `json:"from"`
 	To        string          `json:"to"`
 	PairID    string          `json:"pair_id"`
-	Type      string          `json:"type"` // "keygen_request", "keygen_accept", etc.
+	Type      string          `json:"type"`
 	Body      json.RawMessage `json:"body"`
 	CreatedAt int64           `json:"created_at"`
 }
@@ -59,12 +58,10 @@ func storeMessage(stor storage.Storage, msg *Message) error {
 		return err
 	}
 
-	// Store the message
 	if err := stor.Put(context.Background(), mailboxPrefix+msg.ID, data); err != nil {
 		return err
 	}
 
-	// Add to recipient's index
 	return addToIndex(stor, mailboxPrefix+"inbox/"+strings.ToLower(msg.To), msg.ID)
 }
 
@@ -84,16 +81,13 @@ func loadMessage(stor storage.Storage, id string) (*Message, error) {
 }
 
 func deleteMessage(stor storage.Storage, id, recipient string) error {
-	// Delete the message
 	if err := stor.Delete(context.Background(), mailboxPrefix+id); err != nil {
 		return err
 	}
 
-	// Remove from recipient's index
 	return removeFromIndex(stor, mailboxPrefix+"inbox/"+strings.ToLower(recipient), id)
 }
 
-// removeFromIndex removes a message ID from an index list.
 func removeFromIndex(stor storage.Storage, key, msgID string) error {
 	data, err := stor.Get(context.Background(), key)
 	if err != nil {
@@ -141,8 +135,6 @@ func loadInbox(stor storage.Storage, address string) ([]string, error) {
 	return ids, nil
 }
 
-// Handlers
-
 // mailboxSend sends a message to the other member of a pair.
 //
 // @Summary      Send a mailbox message
@@ -175,7 +167,6 @@ func (s *Server) mailboxSend() http.HandlerFunc {
 		from := auth.AddressFromContext(r.Context())
 		to := strings.ToLower(req.To)
 
-		// Verify sender belongs to the pair
 		pair, err := loadPair(s.stor, req.PairID)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
@@ -193,7 +184,6 @@ func (s *Server) mailboxSend() http.HandlerFunc {
 			return
 		}
 
-		// Verify recipient is the other member of the pair
 		recipientInPair := strings.EqualFold(pair.Initiator, to) || strings.EqualFold(pair.Partner, to)
 		if !recipientInPair {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("recipient is not part of this pair"))
@@ -288,7 +278,6 @@ func (s *Server) mailboxAck() http.HandlerFunc {
 
 		myAddr := auth.AddressFromContext(r.Context())
 
-		// Verify the message belongs to this user
 		msg, err := loadMessage(s.stor, req.ID)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))

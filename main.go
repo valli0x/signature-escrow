@@ -83,7 +83,6 @@ func runClient(ctx context.Context, env *config.Env, logger *slog.Logger) error 
 
 	var commCreds credentials.TransportCredentials = insecure.NewCredentials()
 	if os.Getenv("COMMUNICATION_TLS") == "true" || os.Getenv("COMMUNICATION_TLS") == "1" {
-		// Relay reached over public TLS (e.g. nginx grpc_pass on :443).
 		commCreds = credentials.NewTLS(&tls.Config{})
 	}
 	conn, err := grpc.NewClient(env.Communication, grpc.WithTransportCredentials(commCreds))

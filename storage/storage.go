@@ -105,7 +105,6 @@ func (e *EncryptedStorage) Delete(ctx context.Context, key string) error {
 	return e.backend.Delete(ctx, key)
 }
 
-// clearPath оставлен для совместимости, если нужно использовать префиксы
 func clearPath(path string) string {
 	return strings.Trim(path, "/") + "/"
 }

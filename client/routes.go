@@ -18,7 +18,6 @@ func (c *Client) routes() *chi.Mux {
 	})
 	r.Use(Cors.Handler)
 
-	// Swagger UI: /swagger/index.html
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))

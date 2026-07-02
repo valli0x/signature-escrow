@@ -1,6 +1,3 @@
-// Copyright (c) HashiCorp, Inc.
-// SPDX-License-Identifier: MPL-2.0
-
 package file
 
 import (
@@ -23,20 +20,12 @@ import (
 	"github.com/hashicorp/vault/sdk/physical"
 )
 
-// Verify FileBackend satisfies the correct interfaces
 var (
 	_ physical.Backend             = (*FileBackend)(nil)
 	_ physical.Transactional       = (*TransactionalFileBackend)(nil)
 	_ physical.PseudoTransactional = (*FileBackend)(nil)
 )
 
-// FileBackend is a physical backend that stores data on disk
-// at a given file path. It can be used for durable single server
-// situations, or to develop locally where durability is not critical.
-//
-// WARNING: the file backend implementation is currently extremely unsafe
-// and non-performant. It is meant mostly for local testing and development.
-// It can be improved in the future.
 type FileBackend struct {
 	sync.RWMutex
 	path       string
@@ -52,7 +41,6 @@ type fileEntry struct {
 	Value []byte
 }
 
-// NewFileBackend constructs a FileBackend using the given directory
 func NewFileBackend(conf map[string]string, logger *slog.Logger) (physical.Backend, error) {
 	path, ok := conf["path"]
 	if !ok {
@@ -72,7 +60,6 @@ func NewTransactionalFileBackend(conf map[string]string, logger *slog.Logger) (p
 		return nil, fmt.Errorf("'path' must be set")
 	}
 
-	// Create a pool of size 1 so only one operation runs at a time
 	return &TransactionalFileBackend{
 		FileBackend: FileBackend{
 			path:       path,
@@ -122,8 +109,6 @@ func (b *FileBackend) DeleteInternal(ctx context.Context, path string) error {
 	return err
 }
 
-// cleanupLogicalPath is used to remove all empty nodes, beginning with deepest
-// one, aborting on first non-empty one, up to top-level node.
 func (b *FileBackend) cleanupLogicalPath(path string) error {
 	nodes := strings.Split(path, fmt.Sprintf("%c", os.PathSeparator))
 	for i := len(nodes) - 1; i > 0; i-- {
@@ -147,7 +132,6 @@ func (b *FileBackend) cleanupLogicalPath(path string) error {
 			return err
 		}
 
-		// If we have no entries, it's an empty directory; remove it
 		if err == io.EOF || list == nil || len(list) == 0 {
 			err = os.Remove(fullPath)
 			if err != nil {
@@ -179,13 +163,9 @@ func (b *FileBackend) GetInternal(ctx context.Context, k string) (*physical.Entr
 	path, key := b.expandPath(k)
 	path = filepath.Join(path, key)
 
-	// If we stat it and it exists but is size zero, it may be left from some
-	// previous FS error like out-of-space. No Vault entry will ever be zero
-	// length, so simply remove it and return nil.
 	fi, err := os.Stat(path)
 	if err == nil {
 		if fi.Size() == 0 {
-			// Best effort, ignore errors
 			os.Remove(path)
 			return nil, nil
 		}
@@ -244,12 +224,10 @@ func (b *FileBackend) PutInternal(ctx context.Context, entry *physical.Entry) er
 	default:
 	}
 
-	// Make the parent tree
 	if err := os.MkdirAll(path, 0o700); err != nil {
 		return err
 	}
 
-	// JSON encode the entry and write it
 	fullPath := filepath.Join(path, key)
 	f, err := os.CreateTemp(path, key)
 	if err != nil {
@@ -283,11 +261,6 @@ func (b *FileBackend) PutInternal(ctx context.Context, entry *physical.Entry) er
 		return nil
 	}
 
-	// Everything below is best-effort and will result in encErr being returned
-
-	// See if we ended up with a zero-byte file and if so delete it, might be a
-	// case of disk being full but the file info is in metadata that is
-	// reserved.
 	fi, err := os.Stat(f.Name())
 	if err != nil {
 		return encErr
@@ -323,7 +296,6 @@ func (b *FileBackend) ListInternal(ctx context.Context, prefix string) ([]string
 		path = filepath.Join(path, prefix)
 	}
 
-	// Read the directory contents
 	f, err := os.Open(path)
 	if f != nil {
 		defer f.Close()

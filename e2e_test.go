@@ -16,7 +16,6 @@ import (
 const baseURL = "http://localhost:8282"
 
 func TestE2E_AuthAndPairing(t *testing.T) {
-	// Generate two test wallets
 	keyA, _ := crypto.GenerateKey()
 	keyB, _ := crypto.GenerateKey()
 	addrA := crypto.PubkeyToAddress(keyA.PublicKey).Hex()
@@ -25,19 +24,14 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 	t.Logf("Participant A: %s", addrA)
 	t.Logf("Participant B: %s", addrB)
 
-	// === AUTH ===
-
-	// Step 1: Get nonce for A
 	nonceRespA := post(t, "/v1/auth/nonce", map[string]string{"address": addrA}, "")
 	nonceA := nonceRespA["nonce"].(string)
 	messageA := nonceRespA["message"].(string)
 	t.Logf("A nonce: %s", nonceA)
 
-	// Step 2: Sign message with A's key
 	sigA := signMessage(t, messageA, keyA)
 	t.Logf("A signature: %s", sigA)
 
-	// Step 3: Login A
 	loginRespA := post(t, "/v1/auth/login", map[string]interface{}{
 		"address":   addrA,
 		"signature": sigA,
@@ -47,7 +41,6 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 	t.Logf("A token: %s...%s", tokenA[:20], tokenA[len(tokenA)-10:])
 	t.Logf("A authenticated as: %s", loginRespA["address"])
 
-	// Step 4: Same for B
 	nonceRespB := post(t, "/v1/auth/nonce", map[string]string{"address": addrB}, "")
 	nonceB := nonceRespB["nonce"].(string)
 	messageB := nonceRespB["message"].(string)
@@ -61,9 +54,6 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 	tokenB := loginRespB["token"].(string)
 	t.Logf("B authenticated as: %s", loginRespB["address"])
 
-	// === PAIRING ===
-
-	// Step 5: A creates pair with B
 	pairResp := post(t, "/v1/pair/create", map[string]string{
 		"partner": addrB,
 	}, tokenA)
@@ -73,7 +63,6 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 		t.Fatalf("expected pending, got %s", pairResp["status"])
 	}
 
-	// Step 6: B checks pending
 	pendingResp := get(t, "/v1/pair/pending", tokenB)
 	incoming := pendingResp["incoming"].([]interface{})
 	if len(incoming) == 0 {
@@ -82,7 +71,6 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 	inPair := incoming[0].(map[string]interface{})
 	t.Logf("B sees incoming: initiator=%s status=%s", inPair["initiator"], inPair["status"])
 
-	// Step 7: B accepts
 	acceptResp := post(t, "/v1/pair/accept", map[string]string{
 		"id": pairResp["id"].(string),
 	}, tokenB)
@@ -92,7 +80,6 @@ func TestE2E_AuthAndPairing(t *testing.T) {
 		t.Fatalf("expected accepted, got %s", acceptResp["status"])
 	}
 
-	// Step 8: A checks — should see accepted
 	pendingA := get(t, "/v1/pair/pending", tokenA)
 	outgoing := pendingA["outgoing"].([]interface{})
 	outPair := outgoing[0].(map[string]interface{})
@@ -112,7 +99,7 @@ func signMessage(t *testing.T, message string, key *ecdsa.PrivateKey) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sig[64] += 27 // MetaMask format
+	sig[64] += 27
 	return fmt.Sprintf("0x%x", sig)
 }
 

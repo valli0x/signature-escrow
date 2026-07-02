@@ -65,7 +65,6 @@ func (c *Client) checkBalance() http.HandlerFunc {
 			return
 		}
 
-		// Expected may be 0 for a pure balance query (no sufficiency check).
 		if req.Network == "" || req.Address == "" || req.Expected < 0 {
 			respondError(w, http.StatusBadRequest, errors.New("network and address are required; expected must be >= 0"))
 			return

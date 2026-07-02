@@ -100,7 +100,6 @@ func respondOk(w http.ResponseWriter, body interface{}) {
 	}
 }
 
-// ErrorResponse is the standard error envelope: {"errors":[...]}.
 type ErrorResponse struct {
 	Errors []string `json:"errors"`
 }

@@ -27,10 +27,7 @@ type SendTransactionRequest struct {
 	Signature string `json:"signature"`
 	ChainID   int64  `json:"chain_id,omitempty"`
 	NodeURL   string `json:"node_url,omitempty"`
-	// TxData is the RLP of the EXACT unsigned tx whose hash was signed
-	// (from /tx/hash). When present, it is broadcast verbatim with the
-	// signature applied — the only correct way to send an MPC-signed tx.
-	TxData string `json:"tx_data,omitempty"`
+	TxData    string `json:"tx_data,omitempty"`
 }
 
 type SendTransactionResponse struct {
@@ -63,7 +60,6 @@ func (c *Client) sendTransaction() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, errors.New("network and signature are required"))
 			return
 		}
-		// Without tx_data we still need the legacy fields to rebuild the tx.
 		if req.TxData == "" && (req.From == "" || req.To == "" || req.Value == "") {
 			respondError(w, http.StatusBadRequest, errors.New("from, to and value are required when tx_data is absent"))
 			return
@@ -104,9 +100,6 @@ func (c *Client) sendEthereumTransaction(req SendTransactionRequest) (SendTransa
 		Status: "processing",
 	}
 
-	// Preferred path: broadcast the EXACT signed transaction. tx_data is the RLP
-	// of the unsigned tx whose hash was signed; applying the signature here and
-	// sending it verbatim guarantees the signature matches (no nonce/gas drift).
 	if req.TxData != "" {
 		raw, err := hex.DecodeString(strings.TrimPrefix(req.TxData, "0x"))
 		if err != nil {
@@ -121,9 +114,6 @@ func (c *Client) sendEthereumTransaction(req SendTransactionRequest) (SendTransa
 			return response, fmt.Errorf("invalid signature format: %v", err)
 		}
 
-		// NOTE: do NOT trust tx.ChainId() here — for an UNSIGNED legacy tx it
-		// returns a garbage value. The hash was created with chainId 1 (see
-		// createTxHash); honour req.ChainID only if explicitly provided.
 		chainID := big.NewInt(1)
 		if req.ChainID != 0 {
 			chainID = big.NewInt(req.ChainID)

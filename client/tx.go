@@ -179,7 +179,6 @@ func (c *Client) createBitcoinTxHash(req TxHashRequest) (TxHashResponse, error) 
 	return response, nil
 }
 
-// TxDecodeRequest decodes an unsigned tx_data (RLP) for verification display.
 type TxDecodeRequest struct {
 	Network string `json:"network"`
 	TxData  string `json:"tx_data"`

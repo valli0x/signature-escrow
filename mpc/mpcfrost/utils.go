@@ -31,7 +31,6 @@ func GetPublicKeyByte(c *frost.TaprootConfig) ([]byte, error) {
 	return c.PublicKey, nil
 }
 
-// SegWit address type
 func GetAddress(c *frost.TaprootConfig) (*btcutil.AddressWitnessPubKeyHash, error) {
 	pub, err := schnorr.ParsePubKey(c.PublicKey)
 	if err != nil {

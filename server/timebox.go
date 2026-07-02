@@ -17,9 +17,6 @@ import (
 	"github.com/valli0x/signature-escrow/validation"
 )
 
-// timeboxDelay — после этого срока с момента POST подпись становится
-// доступной по GET. Идея: если общий счёт пополнен только одной стороной
-// и вторая не пополняет, через час можно вывести средства.
 const timeboxDelay = time.Hour
 
 type timeboxEntry struct {
@@ -27,17 +24,14 @@ type timeboxEntry struct {
 	Pub       []byte
 	Hash      []byte
 	Sig       []byte
-	PairID    string // pair, к которой привязана запись (для авторизации)
+	PairID    string
 	CreatedAt time.Time
 }
 
-// pairContains возвращает true, если addr — initiator или partner пары.
 func pairContains(p *Pair, addr string) bool {
 	return strings.EqualFold(p.Initiator, addr) || strings.EqualFold(p.Partner, addr)
 }
 
-// authorizeTimeboxAccess загружает пару по pairID и проверяет, что
-// текущий вызывающий (из JWT-контекста) — один из её участников.
 func (s *Server) authorizeTimeboxAccess(r *http.Request, pairID string) (*Pair, error) {
 	if pairID == "" {
 		return nil, errors.New("pair_id is required")
@@ -87,7 +81,6 @@ func deleteTimebox(stor storage.Storage, pub []byte) error {
 	return stor.Delete(context.Background(), timeboxKey(pub))
 }
 
-// validatePub применяет правила длины/префикса pub в зависимости от алгоритма.
 func validatePub(alg validation.SignaturesType, pub []byte) error {
 	switch alg {
 	case validation.ECDSA:
@@ -107,11 +100,9 @@ func validatePub(alg validation.SignaturesType, pub []byte) error {
 	return nil
 }
 
-// ---------- POST /v1/timebox ----------
-
 type TimeboxPostRequest struct {
 	Alg    string `json:"alg"`
-	PairID string `json:"pair_id"` // обязателен: ограничивает, кто может POST/GET
+	PairID string `json:"pair_id"`
 	Pub    string `json:"pub"`
 	Hash   string `json:"hash"`
 	Sig    string `json:"sig"`
@@ -183,13 +174,11 @@ func (s *Server) timeboxPost() http.HandlerFunc {
 			return
 		}
 
-		// Авторизация: только участники пары могут класть запись.
 		if _, err := s.authorizeTimeboxAccess(r, e.PairID); err != nil {
 			respondError(w, http.StatusForbidden, err)
 			return
 		}
 
-		// Проверяем подпись на стадии POST — не сохраняем заведомо мусорные записи.
 		ok, err := validation.Validate(e.Alg, e.Pub, e.Hash, e.Sig)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("signature validation: %w", err))
@@ -214,8 +203,6 @@ func (s *Server) timeboxPost() http.HandlerFunc {
 		})
 	}
 }
-
-// ---------- GET /v1/timebox?pub=&hash= ----------
 
 // timeboxGet retrieves a time-locked signature once it is available.
 //
@@ -270,14 +257,11 @@ func (s *Server) timeboxGet() http.HandlerFunc {
 			return
 		}
 
-		// Авторизация: только участники пары, к которой привязана запись,
-		// могут читать timebox-подпись.
 		if _, err := s.authorizeTimeboxAccess(r, entry.PairID); err != nil {
 			respondError(w, http.StatusForbidden, err)
 			return
 		}
 
-		// Проверяем, что хранимая подпись валидна для (entry.Pub, переданный hash, entry.Sig).
 		valid, _ := validation.Validate(entry.Alg, entry.Pub, hash, entry.Sig)
 		resp := map[string]any{
 			"has_signature": true,
@@ -298,7 +282,6 @@ func (s *Server) timeboxGet() http.HandlerFunc {
 			return
 		}
 
-		// Прошёл час и валидность подтверждена — выдаём подпись.
 		resp["ready"] = true
 		resp["signature"] = base64.StdEncoding.EncodeToString(entry.Sig)
 		respondOk(w, resp)

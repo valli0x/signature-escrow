@@ -10,7 +10,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-// AccountMeta is stored locally per account.
 type AccountMeta struct {
 	Network   string `json:"network"`
 	Index     int    `json:"index"`
@@ -25,18 +24,15 @@ type AccountsListResponse struct {
 	Accounts []AccountMeta `json:"accounts"`
 }
 
-// AccountGetRequest identifies an account by network and index.
 type AccountGetRequest struct {
 	Network string `json:"network"`
 	Index   int    `json:"index"`
 }
 
-// AccountDeleteRequest identifies an account to delete; Address echoes the
-// stored account address as a safety confirmation.
 type AccountDeleteRequest struct {
 	Network string `json:"network"`
 	Index   int    `json:"index"`
-	Address string `json:"address"` // confirmation
+	Address string `json:"address"`
 }
 
 // listAccounts lists locally stored accounts.
@@ -53,7 +49,6 @@ func (c *Client) listAccounts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		network := r.URL.Query().Get("network")
 
-		// Scan known account indices
 		accounts := make([]AccountMeta, 0)
 
 		networks := []string{"eth", "btc"}
@@ -66,8 +61,6 @@ func (c *Client) listAccounts() http.HandlerFunc {
 				key := fmt.Sprintf("accounts/%s/%d/meta", net, i)
 				data, err := c.stor.Get(context.Background(), key)
 				if err != nil || data == nil {
-					// Skip gaps (e.g. after a deletion) instead of stopping,
-					// so later accounts remain visible.
 					continue
 				}
 				var meta AccountMeta
@@ -128,14 +121,12 @@ func (c *Client) deleteAccount() http.HandlerFunc {
 			return
 		}
 
-		// Address confirmation guard — prevents deleting the wrong account.
 		if req.Address != "" && !strings.EqualFold(req.Address, meta.Address) {
 			respondError(w, http.StatusBadRequest,
 				fmt.Errorf("address confirmation does not match this account"))
 			return
 		}
 
-		// Remove all artefacts for the account (best-effort each).
 		keys := []string{
 			metaKey,
 			base + "/conf-ecdsa",

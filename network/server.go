@@ -59,12 +59,6 @@ func NewServer(port string, natsurl string) (*server, error) {
 		return nil, err
 	}
 
-	// Relay stream buffers MPC messages so a party that starts later does not
-	// miss the first message of an earlier party. Subjects are single tokens
-	// ("sessionID/address" or bare "address" — no '.'), so "*" captures them all.
-	// WorkQueue retention + per-message ack removes a message once consumed, so a
-	// reused subject (keygen -> presign, repeated signs) stays clean for the next
-	// phase. Messages that are never consumed expire via MaxAge.
 	cfg := &nats.StreamConfig{
 		Name:      relayStreamName,
 		Subjects:  []string{"*"},
@@ -94,7 +88,7 @@ func (s *server) Run() error {
 	}
 
 	grpcserver := grpc.NewServer(
-		grpc.MaxRecvMsgSize(16<<20), // 16MB
+		grpc.MaxRecvMsgSize(16<<20),
 		grpc.MaxSendMsgSize(16<<20),
 
 		grpc.MaxConcurrentStreams(1000),
@@ -118,8 +112,6 @@ func (s *server) Run() error {
 }
 
 func (s *server) Send(ctx context.Context, in *pb.SendReq) (*pb.SendRes, error) {
-	// Persist into the relay stream so the message survives until the peer's
-	// consumer reads it (even if the peer subscribes later).
 	if _, err := s.js.Publish(in.Name, []byte(in.Msgbody)); err != nil {
 		return &pb.SendRes{}, err
 	}
@@ -132,9 +124,6 @@ func (s *server) Next(req *pb.NextReq, stream pb.Exchange_NextServer) error {
 		return errors.New("invalid name")
 	}
 
-	// Ephemeral, subject-filtered consumer that replays everything buffered for
-	// this subject and then streams new messages. AckExplicit + WorkQueue means
-	// each delivered message is removed from the stream once acked.
 	sub, err := s.js.Subscribe(req.Name, func(m *nats.Msg) {
 		if err := stream.Send(&pb.NextRes{
 			Msgbody: string(m.Data),
@@ -151,11 +140,8 @@ func (s *server) Next(req *pb.NextReq, stream pb.Exchange_NextServer) error {
 	if err != nil {
 		return err
 	}
-	// Unsubscribe deletes the ephemeral consumer, freeing the subject so the next
-	// phase (e.g. presign) on the same subject can attach a fresh consumer.
 	defer sub.Unsubscribe()
 
-	// Block until the client disconnects (or cancels — see client.Done()).
 	<-stream.Context().Done()
 	return nil
 }

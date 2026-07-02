@@ -15,22 +15,17 @@ import (
 
 const exchangesKey = "exchanges/all"
 
-// Exchange links two escrow accounts for a swap. Each side (A, B) is an escrow
-// account that has its OWN partner (the 2-of-2 counterpart), so the two sides
-// can involve different partners. Each side tracks its own invite status.
 type Exchange struct {
 	ID string `json:"id"`
 
 	AddressA string `json:"address_a"`
-	PartnerA string `json:"partner_a"` // counterpart of escrow A
-	StatusA  string `json:"status_a"`  // "" | invited | accepted
+	PartnerA string `json:"partner_a"`
+	StatusA  string `json:"status_a"`
 
 	AddressB string `json:"address_b"`
 	PartnerB string `json:"partner_b"`
 	StatusB  string `json:"status_b"`
 
-	// Creator (ETH addr) withdraws from escrow A; the other party withdraws
-	// from escrow B. Binds each escrow account to one withdrawer.
 	Creator string `json:"creator"`
 
 	CreatedAt int64 `json:"created_at"`
@@ -40,14 +35,11 @@ type ExchangeListResponse struct {
 	Exchanges []Exchange `json:"exchanges"`
 }
 
-// ExchangeCreateRequest creates an exchange draft. Both addresses are optional.
 type ExchangeCreateRequest struct {
 	AddressA string `json:"address_a"`
 	AddressB string `json:"address_b"`
 }
 
-// ExchangeUpdateRequest updates an existing exchange. Per-side fields are
-// applied only when non-empty.
 type ExchangeUpdateRequest struct {
 	ID       string `json:"id"`
 	AddressA string `json:"address_a"`
@@ -59,7 +51,6 @@ type ExchangeUpdateRequest struct {
 	Creator  string `json:"creator,omitempty"`
 }
 
-// ExchangeUpsertRequest create-or-replaces an exchange by id (acceptor import).
 type ExchangeUpsertRequest struct {
 	ID       string `json:"id"`
 	AddressA string `json:"address_a"`
@@ -71,7 +62,6 @@ type ExchangeUpsertRequest struct {
 	Creator  string `json:"creator"`
 }
 
-// ExchangeDeleteRequest identifies an exchange to delete.
 type ExchangeDeleteRequest struct {
 	ID string `json:"id"`
 }
@@ -139,7 +129,6 @@ func (c *Client) listExchanges() http.HandlerFunc {
 func (c *Client) createExchange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req ExchangeCreateRequest
-		// Body is optional; ignore decode errors (empty body => empty draft).
 		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		list, err := c.loadExchanges()
@@ -154,7 +143,7 @@ func (c *Client) createExchange() http.HandlerFunc {
 			AddressB:  req.AddressB,
 			CreatedAt: time.Now().UnixMilli(),
 		}
-		list = append([]Exchange{ex}, list...) // newest first
+		list = append([]Exchange{ex}, list...)
 
 		if err := c.saveExchanges(list); err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to save exchange"))

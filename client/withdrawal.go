@@ -30,22 +30,17 @@ type SendWithdrawalTxRequest struct {
 	HashTx        string `json:"hash_tx"`
 	MyID          string `json:"my_id"`
 	Another       string `json:"another_id"`
-	// Optional tx context (history display + later broadcast from Activity).
-	To     string `json:"to,omitempty"`
-	Amount string `json:"amount,omitempty"`
-	TxData string `json:"tx_data,omitempty"`
-	// Escrow (atomic swap): when EscrowID is set, the initiator records an
-	// escrow-await event so the signature is exchanged via the server escrow.
-	EscrowID string `json:"escrow_id,omitempty"`
-	Pub      string `json:"pub,omitempty"`
+	To            string `json:"to,omitempty"`
+	Amount        string `json:"amount,omitempty"`
+	TxData        string `json:"tx_data,omitempty"`
+	EscrowID      string `json:"escrow_id,omitempty"`
+	Pub           string `json:"pub,omitempty"`
 }
 
 type SendWithdrawalTxResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-	// PresignRotated reports whether a fresh single-use presignature was
-	// generated to replace the one just consumed (ECDSA only).
-	PresignRotated bool `json:"presign_rotated"`
+	Status         string `json:"status"`
+	Message        string `json:"message"`
+	PresignRotated bool   `json:"presign_rotated"`
 }
 
 type AcceptWithdrawalTxRequest struct {
@@ -54,26 +49,18 @@ type AcceptWithdrawalTxRequest struct {
 	EscrowAddress string `json:"escrow_address"`
 	MyID          string `json:"my_id"`
 	Another       string `json:"another_id"`
-	// HashTx обязателен для FROST: протокол сам не пересылает хеш —
-	// обе стороны должны знать, что подписывают, заранее (через mailbox/UI).
-	// Для ECDSA не используется (хеш приходит в payload incomplete-signature).
-	HashTx string `json:"hash_tx,omitempty"`
-	// Optional tx context (for history + later broadcast from Activity).
-	To     string `json:"to,omitempty"`
-	Amount string `json:"amount,omitempty"`
-	TxData string `json:"tx_data,omitempty"`
-	// EscrowID: when set, this accept is part of an atomic swap. We co-sign at
-	// most ONCE per swap — a second accept for the same id is rejected.
-	EscrowID string `json:"escrow_id,omitempty"`
+	HashTx        string `json:"hash_tx,omitempty"`
+	To            string `json:"to,omitempty"`
+	Amount        string `json:"amount,omitempty"`
+	TxData        string `json:"tx_data,omitempty"`
+	EscrowID      string `json:"escrow_id,omitempty"`
 }
 
 type AcceptWithdrawalTxResponse struct {
 	Status            string `json:"status"`
 	CompleteSignature string `json:"complete_signature"`
 	Message           string `json:"message"`
-	// PresignRotated reports whether a fresh single-use presignature was
-	// generated to replace the one just consumed (ECDSA only).
-	PresignRotated bool `json:"presign_rotated"`
+	PresignRotated    bool   `json:"presign_rotated"`
 }
 
 // sendWithdrawalTx initiates the sender half of an MPC withdrawal signature.
@@ -109,12 +96,8 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
-		// keygen wrote via c.stor (already encrypted when STORAGE_PASS is set);
-		// read through the same layer — do NOT wrap again (double-encryption).
 		stor := c.stor
 
-		// Per-round relay subjects (scoped by the tx hash) so consumers from
-		// different co-sign rounds never collide ("filtered consumer not unique").
 		net, err := network.NewClient(
 			c.env.Communication,
 			myid+"/cosign/"+hashTxWithdrawal, another+"/cosign/"+hashTxWithdrawal,
@@ -134,8 +117,6 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
-			// Config is stored via cmp.Config.MarshalBinary (not plain cbor),
-			// so it must be read back the same way.
 			if err := config.UnmarshalBinary(data); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
@@ -189,16 +170,12 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 			}
 			net.Send(msg)
 
-			// Respond immediately — do NOT block the request on presignature
-			// rotation. Rotation is an interactive round that can only complete
-			// once the partner accepts; running it inline would hang the caller
-			// until then. Run it in the background instead.
 			go c.rotateECDSAPresign(name, myid, another, hashTxWithdrawal, config)
 
 			net0, idx0 := parseAccountName(name)
 			status0 := "sent"
 			if req.EscrowID != "" {
-				status0 = "escrow-await" // signature will arrive via server escrow
+				status0 = "escrow-await"
 			}
 			c.recordCosign(CosignEvent{
 				Role: "initiator", Status: status0,
@@ -238,8 +215,6 @@ func (c *Client) sendWithdrawalTx() http.HandlerFunc {
 
 			signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
-			// FrostSignTaprootInc выполняет: send round2 → recv round2 → send round3.
-			// Полную подпись соберёт принимающая сторона в acceptWithdrawalTx.
 			if err := mpcfrost.FrostSignTaprootInc(config, hashB, signers, net); err != nil {
 				c.logger.Error("FROST inc signing failed", "error", err)
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("frost inc signing failed: %v", err))
@@ -283,7 +258,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("alg, name and escrow_address are required"))
 			return
 		}
-		// hash_tx is required so both parties scope the relay subject identically.
 		if req.HashTx == "" {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("hash_tx is required"))
 			return
@@ -295,9 +269,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
-		// SECURITY: one co-sign per swap. If we already completed an accept for
-		// this escrow_id, refuse — prevents being tricked into co-signing a
-		// SECOND withdrawal (draining another account) under the same swap.
 		if req.EscrowID != "" {
 			for _, ev := range c.loadCosignHistory() {
 				if ev.Role == "acceptor" && ev.EscrowID == req.EscrowID &&
@@ -309,12 +280,8 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			}
 		}
 
-		// keygen wrote via c.stor (already encrypted when STORAGE_PASS is set);
-		// read through the same layer — do NOT wrap again (double-encryption).
 		stor := c.stor
 
-		// Per-round relay subjects (scoped by the tx hash) — must match the
-		// sender's so the two halves rendezvous, and so rounds never collide.
 		net, err := network.NewClient(
 			c.env.Communication,
 			myid+"/cosign/"+req.HashTx, another+"/cosign/"+req.HashTx,
@@ -328,8 +295,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 		switch alg {
 		case "ecdsa":
-			// Wait for the initiator's incomplete signature, but don't hang
-			// forever if they never send it.
 			var msg *protocol.Message
 			select {
 			case msg = <-net.Next():
@@ -349,10 +314,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
-			// SECURITY: only co-sign a hash that provably matches the tx_data we
-			// were shown. Otherwise the initiator could DISPLAY a benign transfer
-			// while asking us to sign a different transaction (e.g. draining the
-			// escrow). Recompute the signing hash from tx_data and compare.
 			if req.TxData != "" {
 				raw, err := hex.DecodeString(strings.TrimPrefix(req.TxData, "0x"))
 				if err != nil {
@@ -378,8 +339,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get config: %v", err))
 				return
 			}
-			// Config is stored via cmp.Config.MarshalBinary (not plain cbor),
-			// so it must be read back the same way.
 			if err := config.UnmarshalBinary(data); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal config: %v", err))
 				return
@@ -417,9 +376,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
-			// Ethereum format r||s||v (low-s, recovery id) so the node can
-			// recover the sender. GetSigByte returns CMP-native R||S, which a
-			// node cannot verify.
 			sigEthereum, err := mpccmp.SigEthereum(sig)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get signature bytes: %v", err))
@@ -428,8 +384,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 			completeSignature := hex.EncodeToString(sigEthereum)
 
-			// Return the signature immediately; refresh the consumed
-			// presignature in the background (interactive round with the peer).
 			go c.rotateECDSAPresign(name, myid, another, tx.HashTx, config)
 
 			net0, idx0 := parseAccountName(name)
@@ -478,9 +432,6 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 
 			signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
-			// FrostSignTaprootCoSign выполняет: send round2 → recv round2 →
-			// (skip own round3) → recv round3 → собрать полную подпись.
-			// Параметр incSig в этой функции не используется — передаём nil.
 			sig, err := mpcfrost.FrostSignTaprootCoSign(config, hashB, signers, net)
 			if err != nil {
 				c.logger.Error("FROST co-sign failed", "error", err)
@@ -501,21 +452,11 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 	}
 }
 
-// rotateECDSAPresign regenerates the single-use CMP presignature for an account
-// after it was consumed by a signing operation. It is an interactive round —
-// BOTH parties must run it (they meet on the "/rotate" relay subjects).
-//
-// On success the stored presignature is overwritten. On failure the consumed
-// presignature is DELETED so it can never be silently reused (which would be
-// insecure); the next signing attempt then fails loudly until a fresh presign
-// is generated. The already-produced signature is never affected.
 func (c *Client) rotateECDSAPresign(name, myid, another, roundID string, config *cmp.Config) bool {
 	presigKey := "accounts/" + name + "/presig-ecdsa"
 
 	signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
-	// Per-round relay subjects (scoped by roundID, e.g. the tx hash) so rotations
-	// from different signings — or a leftover one — never collide on the queue.
 	net, err := network.NewClient(
 		c.env.Communication,
 		myid+"/rotate/"+roundID, another+"/rotate/"+roundID,

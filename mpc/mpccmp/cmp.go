@@ -105,7 +105,6 @@ func CMPPreSign(c *cmp.Config, signers party.IDSlice, n network.Network, pl *poo
 	return preSignature, nil
 }
 
-// incomplete signature
 func CMPPreSignOnlineInc(c *cmp.Config, preSignature *ecdsa.PreSignature, m []byte, pl *pool.Pool) (*protocol.Message, error) {
 	h, err := protocol.NewMultiHandler(cmp.PresignOnline(c, preSignature, m, pl), nil)
 	if err != nil {
@@ -123,7 +122,7 @@ func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m [
 	if err != nil {
 		return nil, err
 	}
-	<-h.Listen() // skip first message
+	<-h.Listen()
 	h.Accept(incSig)
 
 	signResult, err := h.Result()
@@ -137,9 +136,8 @@ func CMPPreSignOnlineCoSign(c *cmp.Config, preSignature *ecdsa.PreSignature, m [
 	return signature, nil
 }
 
-// get a signature in ethereum format
 func SigEthereum(sig *ecdsa.Signature) ([]byte, error) {
-	IsOverHalfOrder := sig.S.IsOverHalfOrder() // s-values greater than secp256k1n/2 are considered invalid
+	IsOverHalfOrder := sig.S.IsOverHalfOrder()
 
 	if IsOverHalfOrder {
 		sig.S.Negate()
@@ -159,7 +157,7 @@ func SigEthereum(sig *ecdsa.Signature) ([]byte, error) {
 	rs = append(rs, s...)
 
 	if IsOverHalfOrder {
-		v := rs[0] - 2 // Convert to Ethereum signature format with 'recovery id' v at the end.
+		v := rs[0] - 2
 		copy(rs, rs[1:])
 		rs[64] = v ^ 1
 	} else {

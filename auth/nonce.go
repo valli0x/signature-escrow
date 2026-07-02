@@ -18,10 +18,9 @@ type nonceEntry struct {
 	expiresAt time.Time
 }
 
-// NonceStore manages nonces for MetaMask sign-in.
 type NonceStore struct {
 	mu     sync.RWMutex
-	nonces map[string]nonceEntry // address -> nonce
+	nonces map[string]nonceEntry
 }
 
 func NewNonceStore() *NonceStore {
@@ -30,7 +29,6 @@ func NewNonceStore() *NonceStore {
 	}
 }
 
-// Generate creates a new nonce for the given address.
 func (ns *NonceStore) Generate(address string) (string, error) {
 	b := make([]byte, nonceLength)
 	if _, err := rand.Read(b); err != nil {
@@ -49,7 +47,6 @@ func (ns *NonceStore) Generate(address string) (string, error) {
 	return nonce, nil
 }
 
-// Verify checks and consumes the nonce for the given address.
 func (ns *NonceStore) Verify(address, nonce string) bool {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
@@ -69,7 +66,6 @@ func (ns *NonceStore) Verify(address, nonce string) bool {
 	return entry.nonce == nonce
 }
 
-// Cleanup removes expired nonces.
 func (ns *NonceStore) Cleanup() {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()

@@ -13,18 +13,15 @@ import (
 	"github.com/valli0x/signature-escrow/storage"
 )
 
-// Pair statuses
 const (
 	PairStatusPending  = "pending"
 	PairStatusAccepted = "accepted"
 )
 
-// Storage key prefixes
 const (
 	pairPrefix = "pairs/"
 )
 
-// Pair represents a pairing request between two ETH addresses.
 type Pair struct {
 	ID        string `json:"id"`
 	Initiator string `json:"initiator"`
@@ -32,8 +29,6 @@ type Pair struct {
 	Status    string `json:"status"`
 	CreatedAt int64  `json:"created_at"`
 }
-
-// Request/response types
 
 type PairCreateRequest struct {
 	Partner string `json:"partner"`
@@ -62,8 +57,6 @@ type PairPendingResponse struct {
 	Outgoing []Pair `json:"outgoing"`
 }
 
-// pairID generates a deterministic pair ID from two addresses.
-// Uses "_" separator (not ":") for filesystem compatibility.
 func pairID(a, b string) string {
 	a = strings.ToLower(strings.TrimPrefix(a, "0x"))
 	b = strings.ToLower(strings.TrimPrefix(b, "0x"))
@@ -79,17 +72,14 @@ func storePair(stor storage.Storage, p *Pair) error {
 		return err
 	}
 
-	// Store by pair ID
 	if err := stor.Put(context.Background(), pairPrefix+p.ID, data); err != nil {
 		return err
 	}
 
-	// Index by initiator
 	if err := addToIndex(stor, pairPrefix+"by-addr/"+strings.ToLower(p.Initiator), p.ID); err != nil {
 		return err
 	}
 
-	// Index by partner
 	if err := addToIndex(stor, pairPrefix+"by-addr/"+strings.ToLower(p.Partner), p.ID); err != nil {
 		return err
 	}
@@ -112,7 +102,6 @@ func loadPair(stor storage.Storage, id string) (*Pair, error) {
 	return p, nil
 }
 
-// deletePair removes a pair and its entries from both participants' indexes.
 func deletePair(stor storage.Storage, p *Pair) error {
 	if err := removeFromIndex(stor, pairPrefix+"by-addr/"+strings.ToLower(p.Initiator), p.ID); err != nil {
 		return err
@@ -123,7 +112,6 @@ func deletePair(stor storage.Storage, p *Pair) error {
 	return stor.Delete(context.Background(), pairPrefix+p.ID)
 }
 
-// addToIndex appends a pair ID to an address's index list.
 func addToIndex(stor storage.Storage, key, pairID string) error {
 	var ids []string
 
@@ -137,7 +125,6 @@ func addToIndex(stor storage.Storage, key, pairID string) error {
 		}
 	}
 
-	// Avoid duplicates
 	for _, id := range ids {
 		if id == pairID {
 			return nil
@@ -166,8 +153,6 @@ func loadIndex(stor storage.Storage, address string) ([]string, error) {
 	}
 	return ids, nil
 }
-
-// Handlers
 
 // pairCreate creates a pending pair with another ETH address.
 //
@@ -206,7 +191,6 @@ func (s *Server) pairCreate() http.HandlerFunc {
 
 		id := pairID(initiator, partner)
 
-		// Check if pair already exists
 		existing, err := loadPair(s.stor, id)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
@@ -288,7 +272,6 @@ func (s *Server) pairAccept() http.HandlerFunc {
 			return
 		}
 
-		// Only the partner can accept
 		if !strings.EqualFold(pair.Partner, myAddr) {
 			respondError(w, http.StatusForbidden, fmt.Errorf("only the partner can accept this pair"))
 			return
@@ -306,7 +289,6 @@ func (s *Server) pairAccept() http.HandlerFunc {
 
 		pair.Status = PairStatusAccepted
 
-		// Re-store with updated status
 		data, err := cbor.Marshal(pair)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("marshal error"))
@@ -391,7 +373,7 @@ func (s *Server) pairPending() http.HandlerFunc {
 // @Router       /v1/pair/delete [post]
 func (s *Server) pairDelete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req PairAcceptRequest // reuses {id}
+		var req PairAcceptRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %w", err))
 			return
@@ -408,7 +390,6 @@ func (s *Server) pairDelete() http.HandlerFunc {
 			return
 		}
 		if pair == nil {
-			// Already gone — treat as success (idempotent).
 			respondOk(w, map[string]any{"deleted": true})
 			return
 		}

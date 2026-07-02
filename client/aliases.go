@@ -12,10 +12,8 @@ import (
 
 const aliasesKey = "aliases/all"
 
-// Aliases are personal labels for addresses (partners / escrow / any address),
-// stored locally so the user doesn't have to read raw hex everywhere.
 type AliasesResponse struct {
-	Aliases map[string]string `json:"aliases"` // lowercased address -> name
+	Aliases map[string]string `json:"aliases"`
 }
 
 func (c *Client) loadAliases() map[string]string {

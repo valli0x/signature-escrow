@@ -3,25 +3,19 @@ package config
 import "os"
 
 type Env struct {
-	// Mode: "server", "client", "communication"
 	Mode string
 
-	// Server
 	ServerAddr string
 	JWTSecret  string
 
-	// Client
 	ClientAddr string
 
-	// Communication
 	Communication string
 	NatsURL       string
 
-	// Storage
 	StoragePath string
 	StoragePass string
 
-	// Blockchain
 	EscrowServer     string
 	EthereumRPC      string
 	BlockCypherToken string

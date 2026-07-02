@@ -10,7 +10,6 @@ type contextKey string
 
 const AddressKey contextKey = "eth_address"
 
-// Middleware verifies JWT token and injects the Ethereum address into context.
 func Middleware(secret []byte) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +37,6 @@ func Middleware(secret []byte) func(http.Handler) http.Handler {
 	}
 }
 
-// AddressFromContext extracts the Ethereum address from the request context.
 func AddressFromContext(ctx context.Context) string {
 	addr, _ := ctx.Value(AddressKey).(string)
 	return addr

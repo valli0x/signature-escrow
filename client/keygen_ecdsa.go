@@ -88,7 +88,6 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 		another := normalizePartyID(req.Another)
 		signers := party.NewIDSlice([]party.ID{party.ID(myid), party.ID(another)})
 
-		// NATS channels prefixed with session_id for isolation
 		acceptCh := req.SessionID + "/" + myid
 		sendCh := req.SessionID + "/" + another
 
@@ -111,9 +110,6 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		// Presign with new connection. Use a distinct subject suffix so the
-		// relay's per-subject consumer does not collide with the keygen phase
-		// (both parties derive the same "/presign" subjects deterministically).
 		net2, err := network.NewClient(c.env.Communication, acceptCh+"/presign", sendCh+"/presign", c.logger.With("component", "network"), c.Conn)
 		if err != nil {
 			c.logger.Error("Failed to setup network for presign", "error", err)
@@ -142,7 +138,6 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		// Save locally: accounts/{network}/{index}/conf-ecdsa
 		storageBase := fmt.Sprintf("accounts/%s/%d", req.Network, req.Index)
 
 		kb, err := configETH.MarshalBinary()
@@ -171,7 +166,6 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			return
 		}
 
-		// Save account metadata
 		meta := AccountMeta{
 			Network:   req.Network,
 			Index:     req.Index,

@@ -15,35 +15,29 @@ import (
 const cosignHistoryKey = "cosign-history/all"
 const cosignHistoryMax = 200
 
-// CosignEvent records one local co-sign / broadcast action so the user can see
-// what they sent, completed, or broadcast — and what is still pending/failed.
-// Each client logs its OWN actions (the two parties have separate histories).
 type CosignEvent struct {
 	ID        string `json:"id"`
-	Role      string `json:"role"`   // initiator | acceptor | broadcast
-	Status    string `json:"status"` // sent | completed | failed | broadcast
+	Role      string `json:"role"`
+	Status    string `json:"status"`
 	Network   string `json:"network"`
 	Index     int    `json:"index"`
 	Escrow    string `json:"escrow"`
 	To        string `json:"to"`
-	Amount    string `json:"amount"` // base units
+	Amount    string `json:"amount"`
 	Hash      string `json:"hash"`
 	Signature string `json:"signature,omitempty"`
-	TxData    string `json:"tx_data,omitempty"` // RLP of the unsigned tx (for broadcast)
+	TxData    string `json:"tx_data,omitempty"`
 	TxHash    string `json:"tx_hash,omitempty"`
 	Error     string `json:"error,omitempty"`
-	// Escrow (atomic swap) fields: when set, the signature is exchanged via the
-	// server pollination escrow under EscrowID, keyed by the account Pub.
-	EscrowID string `json:"escrow_id,omitempty"`
-	Pub      string `json:"pub,omitempty"` // escrow account public key (33-byte compressed hex)
-	CreatedAt int64 `json:"created_at"`    // unix ms
+	EscrowID  string `json:"escrow_id,omitempty"`
+	Pub       string `json:"pub,omitempty"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 type CosignHistoryResponse struct {
 	Events []CosignEvent `json:"events"`
 }
 
-// parseAccountName splits "eth/1" into ("eth", 1).
 func parseAccountName(name string) (string, int) {
 	parts := strings.SplitN(name, "/", 2)
 	net := parts[0]
@@ -66,7 +60,6 @@ func (c *Client) loadCosignHistory() []CosignEvent {
 	return list
 }
 
-// recordCosign prepends an event (best-effort; never blocks the caller's flow).
 func (c *Client) recordCosign(ev CosignEvent) {
 	if ev.ID == "" {
 		ev.ID = randID()
@@ -86,9 +79,6 @@ func (c *Client) recordCosign(ev CosignEvent) {
 	_ = c.stor.Put(context.Background(), cosignHistoryKey, b)
 }
 
-// completeCosign marks an initiator's "sent" event for a given hash as
-// completed and attaches the signature returned by the partner — so the
-// initiator can broadcast it from Activity too.
 func (c *Client) completeCosign() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

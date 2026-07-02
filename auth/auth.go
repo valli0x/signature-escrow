@@ -20,14 +20,11 @@ var (
 	ErrInvalidToken     = errors.New("invalid token")
 )
 
-// Claims represents JWT claims with Ethereum address.
 type Claims struct {
 	Address string `json:"address"`
 	jwt.RegisteredClaims
 }
 
-// VerifySignature verifies an EIP-191 personal_sign signature
-// and returns the recovered Ethereum address.
 func VerifySignature(address, message, signature string) (common.Address, error) {
 	if !common.IsHexAddress(address) {
 		return common.Address{}, ErrInvalidAddress
@@ -42,12 +39,10 @@ func VerifySignature(address, message, signature string) (common.Address, error)
 		return common.Address{}, ErrInvalidSignature
 	}
 
-	// MetaMask uses v = 27/28, need v = 0/1 for recovery
 	if sig[64] >= 27 {
 		sig[64] -= 27
 	}
 
-	// Hash with EIP-191 prefix
 	msgHash := accounts.TextHash([]byte(message))
 
 	pubKey, err := crypto.SigToPub(msgHash, sig)
@@ -65,7 +60,6 @@ func VerifySignature(address, message, signature string) (common.Address, error)
 	return recovered, nil
 }
 
-// GenerateToken creates a JWT token for an authenticated Ethereum address.
 func GenerateToken(address common.Address, secret []byte, ttl time.Duration) (string, error) {
 	claims := Claims{
 		Address: strings.ToLower(address.Hex()),
@@ -79,7 +73,6 @@ func GenerateToken(address common.Address, secret []byte, ttl time.Duration) (st
 	return token.SignedString(secret)
 }
 
-// ValidateToken parses and validates a JWT token, returning the claims.
 func ValidateToken(tokenString string, secret []byte) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -99,7 +92,6 @@ func ValidateToken(tokenString string, secret []byte) (*Claims, error) {
 	return claims, nil
 }
 
-// GenerateNonce creates a sign-in message with a nonce for MetaMask.
 func GenerateNonce(address string, nonce string) string {
 	return fmt.Sprintf("Sign in to MPC Oven\nAddress: %s\nNonce: %s", address, nonce)
 }

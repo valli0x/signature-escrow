@@ -4,8 +4,8 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"github.com/valli0x/signature-escrow/auth"
 	_ "github.com/valli0x/signature-escrow/apidocs"
+	"github.com/valli0x/signature-escrow/auth"
 )
 
 func (s *Server) routes() *chi.Mux {
@@ -19,19 +19,16 @@ func (s *Server) routes() *chi.Mux {
 	})
 	r.Use(c.Handler)
 
-	// Swagger UI: /swagger/index.html
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
 
 	r.Route("/v1", func(r chi.Router) {
-		// Public: auth
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/nonce", s.authNonce())
 			r.Post("/login", s.authLogin())
 		})
 
-		// Protected
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Middleware(s.jwtSecret))
 

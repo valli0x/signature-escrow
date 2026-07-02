@@ -11,22 +11,13 @@ import (
 	"github.com/valli0x/signature-escrow/auth"
 )
 
-// sessionRegistry is an in-memory, atomic registry that resolves the
-// cancel/accept race for keygen sessions. Keygen runs on the clients, but the
-// decision of whether the partner proceeds must be made at a single
-// serialization point — this server.
-//
-// Model: the INITIATOR cancels, the PARTNER claims (on accept). Under one
-// mutex, exactly one of {cancel, claim} wins when they collide:
-//   - claim succeeds unless the session was already cancelled.
-//   - cancel succeeds unless the session was already claimed.
 type sessionRegistry struct {
 	mu sync.Mutex
 	m  map[string]sessionEntry
 }
 
 type sessionEntry struct {
-	status string // "claimed" | "cancelled"
+	status string
 	at     time.Time
 }
 
@@ -34,7 +25,6 @@ func newSessionRegistry() *sessionRegistry {
 	return &sessionRegistry{m: make(map[string]sessionEntry)}
 }
 
-// prune drops entries older than 15 minutes. Caller must hold the lock.
 func (r *sessionRegistry) prune() {
 	cutoff := time.Now().Add(-15 * time.Minute)
 	for k, v := range r.m {
@@ -44,8 +34,6 @@ func (r *sessionRegistry) prune() {
 	}
 }
 
-// claim returns true if the partner may proceed (session open or already
-// claimed). Returns false if the session was cancelled by the initiator.
 func (r *sessionRegistry) claim(id string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -57,8 +45,6 @@ func (r *sessionRegistry) claim(id string) bool {
 	return true
 }
 
-// cancel returns true if the session was cancelled (open or already cancelled).
-// Returns false if the partner already claimed it (too late to cancel).
 func (r *sessionRegistry) cancel(id string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -70,12 +56,10 @@ func (r *sessionRegistry) cancel(id string) bool {
 	return true
 }
 
-// SessionRequest is the body for session claim/cancel: {"session_id":"..."}.
 type SessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 
-// SessionResponse is the result of a session claim/cancel: {"ok":true|false}.
 type SessionResponse struct {
 	OK bool `json:"ok"`
 }
