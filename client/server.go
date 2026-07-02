@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -10,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/valli0x/signature-escrow/auth"
 	"github.com/valli0x/signature-escrow/config"
 	"github.com/valli0x/signature-escrow/storage"
 	"google.golang.org/grpc"
@@ -30,6 +33,8 @@ type Client struct {
 	env         *config.Env
 	storagePass string
 	Conn        *grpc.ClientConn
+	jwtSecret   []byte
+	nonceStore  *auth.NonceStore
 }
 
 type ClientConfig struct {
@@ -39,6 +44,20 @@ type ClientConfig struct {
 	Env         *config.Env
 	StoragePass string
 	Conn        *grpc.ClientConn
+	JWTSecret   string
+}
+
+func clientSecret(jwt, storagePass string) []byte {
+	if jwt != "" {
+		return []byte(jwt)
+	}
+	if storagePass != "" {
+		h := sha256.Sum256([]byte("mpcoven-client-jwt:" + storagePass))
+		return h[:]
+	}
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return b
 }
 
 func NewClient(cfg *ClientConfig) *Client {
@@ -57,6 +76,8 @@ func NewClient(cfg *ClientConfig) *Client {
 		env:         cfg.Env,
 		storagePass: cfg.StoragePass,
 		Conn:        cfg.Conn,
+		jwtSecret:   clientSecret(cfg.JWTSecret, cfg.StoragePass),
+		nonceStore:  auth.NewNonceStore(),
 	}
 
 	c.srv.Handler = c.routes()

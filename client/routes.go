@@ -5,6 +5,7 @@ import (
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "github.com/valli0x/signature-escrow/apidocs"
+	"github.com/valli0x/signature-escrow/auth"
 )
 
 func (c *Client) routes() *chi.Mux {
@@ -23,51 +24,60 @@ func (c *Client) routes() *chi.Mux {
 	))
 
 	r.Route("/v1", func(r chi.Router) {
-		r.Route("/keygen", func(r chi.Router) {
-			r.Post("/ecdsa", c.keygenECDSA())
-			r.Post("/frost", c.keygenFROST())
-		})
+		r.Post("/auth/nonce", c.authNonce())
+		r.Post("/auth/login", c.authLogin())
+		r.Get("/identity", c.identity())
 
-		r.Route("/accounts", func(r chi.Router) {
-			r.Get("/list", c.listAccounts())
-			r.Post("/get", c.getAccount())
-			r.Post("/delete", c.deleteAccount())
-		})
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(c.jwtSecret))
+			r.Use(c.ownerGuard)
 
-		r.Route("/exchanges", func(r chi.Router) {
-			r.Get("/list", c.listExchanges())
-			r.Post("/create", c.createExchange())
-			r.Post("/update", c.updateExchange())
-			r.Post("/upsert", c.upsertExchange())
-			r.Post("/delete", c.deleteExchange())
-		})
+			r.Route("/keygen", func(r chi.Router) {
+				r.Post("/ecdsa", c.keygenECDSA())
+				r.Post("/frost", c.keygenFROST())
+			})
 
-		r.Route("/balance", func(r chi.Router) {
-			r.Post("/check", c.checkBalance())
-			r.Post("/wait", c.waitForBalance())
-		})
+			r.Route("/accounts", func(r chi.Router) {
+				r.Get("/list", c.listAccounts())
+				r.Post("/get", c.getAccount())
+				r.Post("/delete", c.deleteAccount())
+			})
 
-		r.Route("/tx", func(r chi.Router) {
-			r.Post("/hash", c.createTxHash())
-			r.Post("/send", c.sendTransaction())
-			r.Post("/decode", c.decodeTx())
-		})
+			r.Route("/exchanges", func(r chi.Router) {
+				r.Get("/list", c.listExchanges())
+				r.Post("/create", c.createExchange())
+				r.Post("/update", c.updateExchange())
+				r.Post("/upsert", c.upsertExchange())
+				r.Post("/delete", c.deleteExchange())
+			})
 
-		r.Route("/aliases", func(r chi.Router) {
-			r.Get("/list", c.listAliases())
-			r.Post("/set", c.setAlias())
-			r.Post("/delete", c.deleteAlias())
-		})
+			r.Route("/balance", func(r chi.Router) {
+				r.Post("/check", c.checkBalance())
+				r.Post("/wait", c.waitForBalance())
+			})
 
-		r.Route("/cosign", func(r chi.Router) {
-			r.Get("/history", c.listCosignHistory())
-			r.Post("/history/clear", c.clearCosignHistory())
-			r.Post("/complete", c.completeCosign())
-		})
+			r.Route("/tx", func(r chi.Router) {
+				r.Post("/hash", c.createTxHash())
+				r.Post("/send", c.sendTransaction())
+				r.Post("/decode", c.decodeTx())
+			})
 
-		r.Route("/incomplete-signature", func(r chi.Router) {
-			r.Post("/send", c.sendWithdrawalTx())
-			r.Post("/accept", c.acceptWithdrawalTx())
+			r.Route("/aliases", func(r chi.Router) {
+				r.Get("/list", c.listAliases())
+				r.Post("/set", c.setAlias())
+				r.Post("/delete", c.deleteAlias())
+			})
+
+			r.Route("/cosign", func(r chi.Router) {
+				r.Get("/history", c.listCosignHistory())
+				r.Post("/history/clear", c.clearCosignHistory())
+				r.Post("/complete", c.completeCosign())
+			})
+
+			r.Route("/incomplete-signature", func(r chi.Router) {
+				r.Post("/send", c.sendWithdrawalTx())
+				r.Post("/accept", c.acceptWithdrawalTx())
+			})
 		})
 	})
 

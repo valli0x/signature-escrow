@@ -97,6 +97,7 @@ func runClient(ctx context.Context, env *config.Env, logger *slog.Logger) error 
 		Env:         env,
 		StoragePass: env.StoragePass,
 		Conn:        conn,
+		JWTSecret:   env.JWTSecret,
 	})
 
 	logger.Info("starting client server", "addr", env.ClientAddr)
