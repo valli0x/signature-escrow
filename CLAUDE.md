@@ -132,6 +132,14 @@ ssh root@155.212.147.24 'cd /root/signature-escrow/docker && docker compose buil
 Server git is on `main`; commit after deploy so a clean rebuild doesn't lose changes.
 **Edit gotcha:** `Edit` tool string-matches failed silently several times on `routes.go`/`server.go` (matched stale text). After editing routes/struct, ALWAYS verify with `grep -c` before trusting the build.
 
+## Client auth — the Go client is NO LONGER unauthenticated (`client/auth.go`)
+The client may run off-machine, so it has its OWN login, independent of the server:
+- `POST /v1/auth/nonce`, `POST /v1/auth/login` (EIP-191, SAME message format as the server via `auth.GenerateNonce`), `GET /v1/identity` `{address,has_keys,bound}` — these three are PUBLIC. Everything else under `/v1` now sits behind `auth.Middleware(c.jwtSecret)` + `c.ownerGuard`.
+- **Owner binding:** `owner()` = `keyIdentity()` (any account's `pair_my_id`, normalized `0x…`) if the client holds keys, else the persisted `client/owner`. Login: if `owner()!=""` and signer≠owner → **403**; if unbound → bind to the signer. `ownerGuard` re-checks token addr==owner on every op (defense in depth). So a client ONLY ever serves its true owner.
+- **Secret** (`clientSecret`): `JWT_SECRET` if set, else `sha256("mpcoven-client-jwt:"+STORAGE_PASS)` (stable across restarts), else random per-boot (tokens die on restart → user re-logs in). Local `/tmp/sigesc_fresh` clients run with neither set ⇒ random per-boot, fine.
+- Smoke test: `client/auth_smoke_test.go` (httptest + real go-ethereum sigs) — unbound fresh, 401 w/o token, owner binds+works, stranger 403, owner re-login. `go test ./client/ -run TestClientAuthOwnerBinding`.
+- App side: after the server login the app does a SECOND signature (`clientLogin`) and attaches `client_token` to all client calls. See app CLAUDE.md.
+
 ## Key endpoints added beyond the base set
 - `POST /v1/accounts/delete {network,index,address}` (client) — permanently deletes one account's key share (meta/conf/presig). `address` is a confirmation guard (must match stored meta). **Irreversible** — losing the share locks any funds (2-of-2).
 - `listAccounts` scans indices 1..100 and **must `continue` over gaps**, not `break` (deletion leaves holes; `break` would hide later accounts).
