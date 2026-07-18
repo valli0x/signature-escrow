@@ -67,6 +67,8 @@ func (c *Client) recordCosign(ev CosignEvent) {
 	if ev.CreatedAt == 0 {
 		ev.CreatedAt = time.Now().UnixMilli()
 	}
+	c.histMu.Lock()
+	defer c.histMu.Unlock()
 	list := c.loadCosignHistory()
 	list = append([]CosignEvent{ev}, list...)
 	if len(list) > cosignHistoryMax {
@@ -93,6 +95,7 @@ func (c *Client) completeCosign() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, errors.New("hash and signature are required"))
 			return
 		}
+		c.histMu.Lock()
 		list := c.loadCosignHistory()
 		updated := false
 		for i := range list {
@@ -108,6 +111,7 @@ func (c *Client) completeCosign() http.HandlerFunc {
 				_ = c.stor.Put(context.Background(), cosignHistoryKey, b)
 			}
 		}
+		c.histMu.Unlock()
 		respondOk(w, map[string]any{"updated": updated})
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/valli0x/signature-escrow/auth"
 	"github.com/valli0x/signature-escrow/storage"
 	"github.com/valli0x/signature-escrow/validation"
 )
@@ -23,6 +24,10 @@ type flower struct {
 	ID             string
 	Alg            validation.SignaturesType
 	Pub, Hash, Sig []byte
+	// Depositor is the authenticated address that submitted this flower.
+	// A slot can only be (re)written by its original depositor, and one
+	// depositor cannot occupy both slots.
+	Depositor string
 }
 
 func newPollination() *pollination {
@@ -53,13 +58,40 @@ func (p *pollination) pollinate() (bool, error) {
 	return f1Pollinated && f2Pollinated, nil
 }
 
-func (p *pollination) addFlower(f *flower) {
-	switch {
-	case p.flower1 == nil || string(p.flower1.Pub) == string(f.Pub):
-		p.flower1 = f
-	case p.flower2 == nil || string(p.flower2.Pub) == string(f.Pub):
-		p.flower2 = f
+func (p *pollination) addFlower(f *flower) error {
+	// Same pub → same slot: only the original depositor may touch it, and a
+	// non-empty deposited signature is immutable (idempotent re-post allowed).
+	for _, slot := range []**flower{&p.flower1, &p.flower2} {
+		ex := *slot
+		if ex == nil || string(ex.Pub) != string(f.Pub) {
+			continue
+		}
+		if ex.Depositor != "" && ex.Depositor != f.Depositor {
+			return fmt.Errorf("this escrow slot belongs to another participant")
+		}
+		if len(ex.Sig) > 0 && string(ex.Sig) != string(f.Sig) {
+			return fmt.Errorf("a different signature is already deposited for this pub")
+		}
+		*slot = f
+		return nil
 	}
+	// New pub → free slot; one depositor cannot hold both slots.
+	other := p.flower1
+	if other == nil {
+		other = p.flower2
+	}
+	if other != nil && other.Depositor != "" && other.Depositor == f.Depositor {
+		return fmt.Errorf("one participant cannot occupy both escrow slots")
+	}
+	switch {
+	case p.flower1 == nil:
+		p.flower1 = f
+	case p.flower2 == nil:
+		p.flower2 = f
+	default:
+		return fmt.Errorf("escrow already has two participants")
+	}
+	return nil
 }
 
 type pollinationMarshal struct {
@@ -198,7 +230,14 @@ func (s *Server) escrow() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, err)
 			return
 		}
+		f.Depositor = auth.AddressFromContext(r.Context())
 		pubB := f.Pub
+
+		// The whole read-modify-write must be atomic: two concurrent deposits
+		// would otherwise each load the old pollination and clobber the other's
+		// flower (last-writer-wins on the stored blob).
+		s.escrowMu.Lock()
+		defer s.escrowMu.Unlock()
 
 		p, err := getPollination(f.ID, s.stor)
 		if err != nil {
@@ -208,7 +247,10 @@ func (s *Server) escrow() http.HandlerFunc {
 
 		if p == nil {
 			p = newPollination()
-			p.addFlower(f)
+			if err := p.addFlower(f); err != nil {
+				respondError(w, http.StatusConflict, err)
+				return
+			}
 			if err := putPollination(f.ID, p, s.stor); err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
 				return
@@ -217,7 +259,10 @@ func (s *Server) escrow() http.HandlerFunc {
 			return
 		}
 
-		p.addFlower(f)
+		if err := p.addFlower(f); err != nil {
+			respondError(w, http.StatusConflict, err)
+			return
+		}
 		if err := putPollination(f.ID, p, s.stor); err != nil {
 			respondError(w, http.StatusInternalServerError, fmt.Errorf("storage error"))
 			return
@@ -289,6 +334,16 @@ func (s *Server) escrowCheck() http.HandlerFunc {
 		if p == nil || p.flower1 == nil || p.flower2 == nil {
 			respondOk(w, map[string]any{"status": "pending"})
 			return
+		}
+		// Release only to whoever deposited this pub's flower (legacy flowers
+		// without a recorded depositor stay poll-able by any authenticated user).
+		caller := auth.AddressFromContext(r.Context())
+		for _, fl := range []*flower{p.flower1, p.flower2} {
+			if fl != nil && string(fl.Pub) == string(pubB) &&
+				fl.Depositor != "" && fl.Depositor != caller {
+				respondError(w, http.StatusForbidden, fmt.Errorf("this escrow slot belongs to another participant"))
+				return
+			}
 		}
 		pollinated, err := p.pollinate()
 		if err != nil || !pollinated {

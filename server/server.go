@@ -28,6 +28,7 @@ type Server struct {
 	jwtSecret  []byte
 	nonceStore *auth.NonceStore
 	sessions   *sessionRegistry
+	escrowMu   sync.Mutex
 }
 
 type ServerConfig struct {

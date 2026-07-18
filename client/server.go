@@ -37,6 +37,9 @@ type Client struct {
 	jwtSecret   []byte
 	nonceStore  *auth.NonceStore
 	authEnabled bool
+	cosignMu    sync.Mutex
+	cosignBusy  map[string]bool
+	histMu      sync.Mutex
 }
 
 type ClientConfig struct {
@@ -91,6 +94,7 @@ func NewClient(cfg *ClientConfig) *Client {
 		jwtSecret:   clientSecret(cfg.JWTSecret, cfg.StoragePass),
 		nonceStore:  auth.NewNonceStore(),
 		authEnabled: authOn(cfg.ClientAuth),
+		cosignBusy:  make(map[string]bool),
 	}
 
 	c.srv.Handler = c.routes()

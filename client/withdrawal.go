@@ -268,6 +268,13 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			respondError(w, http.StatusBadRequest, fmt.Errorf("hash_tx is required"))
 			return
 		}
+		// The verify-what-you-sign guard (keccak(tx_data)==hash) is the only
+		// crypto-level protection against blind-signing — without tx_data it
+		// would be silently skipped, so an ECDSA accept REQUIRES it.
+		if req.Algorithm == "ecdsa" && req.TxData == "" {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("tx_data is required: the co-signer must verify what it signs"))
+			return
+		}
 
 		alg := req.Algorithm
 		name := req.Name
@@ -275,15 +282,38 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 		myid := normalizePartyID(req.MyID)
 		another := normalizePartyID(req.Another)
 
+		// One co-sign per swap, atomically: the history scan alone is racy (two
+		// concurrent accepts both pass before either records), so an in-progress
+		// set under a mutex closes the window. Applies to ECDSA and FROST alike.
 		if req.EscrowID != "" {
+			c.cosignMu.Lock()
+			if c.cosignBusy[req.EscrowID] {
+				c.cosignMu.Unlock()
+				respondError(w, http.StatusConflict, fmt.Errorf(
+					"a co-sign for this swap (escrow_id=%s) is already in progress", req.EscrowID))
+				return
+			}
+			already := false
 			for _, ev := range c.loadCosignHistory() {
 				if ev.Role == "acceptor" && ev.EscrowID == req.EscrowID &&
 					ev.Status == "completed" {
-					respondError(w, http.StatusConflict, fmt.Errorf(
-						"already co-signed once for this swap (escrow_id=%s) — refusing a second signature", req.EscrowID))
-					return
+					already = true
+					break
 				}
 			}
+			if already {
+				c.cosignMu.Unlock()
+				respondError(w, http.StatusConflict, fmt.Errorf(
+					"already co-signed once for this swap (escrow_id=%s) — refusing a second signature", req.EscrowID))
+				return
+			}
+			c.cosignBusy[req.EscrowID] = true
+			c.cosignMu.Unlock()
+			defer func() {
+				c.cosignMu.Lock()
+				delete(c.cosignBusy, req.EscrowID)
+				c.cosignMu.Unlock()
+			}()
 		}
 
 		stor := c.stor
