@@ -24,6 +24,10 @@ type TxHashRequest struct {
 	Amount   int64  `json:"amount"`
 	GasLimit int64  `json:"gas_limit,omitempty"`
 	ChainID  int64  `json:"chain_id,omitempty"`
+	// Token, when set (Ethereum only), makes this an ERC-20 transfer(To, Amount)
+	// to the token CONTRACT instead of a native ETH send. Amount is in the
+	// token's base units (e.g. USDT has 6 decimals).
+	Token string `json:"token,omitempty"`
 }
 
 type TxHashResponse struct {
@@ -130,8 +134,22 @@ func (c *Client) createEthereumTxHash(req TxHashRequest) (TxHashResponse, error)
 
 	toAddr := common.HexToAddress(req.To)
 	value := big.NewInt(req.Amount)
+	var data []byte
 
-	tx := types.NewTransaction(nonce, toAddr, value, uint64(gasLimit), gasPrice, nil)
+	// ERC-20 transfer: send 0 ETH to the token contract with transfer() calldata.
+	if req.Token != "" {
+		if !common.IsHexAddress(req.Token) {
+			return response, fmt.Errorf("invalid token contract address: %s", req.Token)
+		}
+		data = erc20TransferData(toAddr, value)
+		toAddr = common.HexToAddress(req.Token)
+		value = big.NewInt(0)
+		if req.GasLimit == 0 {
+			gasLimit = 65000
+		}
+	}
+
+	tx := types.NewTransaction(nonce, toAddr, value, uint64(gasLimit), gasPrice, data)
 
 	signer := types.NewLondonSigner(big.NewInt(chainID))
 	hash := signer.Hash(tx)
@@ -220,12 +238,23 @@ func (c *Client) decodeTx() http.HandlerFunc {
 		if tx.To() != nil {
 			to = tx.To().Hex()
 		}
-		respondOk(w, map[string]any{
+		out := map[string]any{
 			"to":        to,
 			"value":     tx.Value().String(),
 			"nonce":     tx.Nonce(),
 			"gas":       tx.Gas(),
 			"gas_price": tx.GasPrice().String(),
-		})
+			"is_erc20":  false,
+		}
+		// If this is an ERC-20 transfer, show the REAL token recipient/amount
+		// (from calldata) — not the contract address in `to`. The acceptor must
+		// verify these, never the sender's display fields.
+		if rTo, amount, ok := decodeERC20Transfer(tx.Data()); ok {
+			out["is_erc20"] = true
+			out["token"] = to     // the contract we call
+			out["to"] = rTo.Hex() // the real recipient
+			out["value"] = amount.String()
+		}
+		respondOk(w, out)
 	}
 }

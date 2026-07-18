@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,9 @@ type BalanceCheckRequest struct {
 	Network  string `json:"network"`
 	Address  string `json:"address"`
 	Expected int64  `json:"expected"`
+	// Token, when set (Ethereum only), reads the ERC-20 balanceOf(Address) on
+	// this contract instead of the native ETH balance.
+	Token string `json:"token,omitempty"`
 }
 
 type BalanceCheckResponse struct {
@@ -120,7 +124,15 @@ func (c *Client) checkEthereumBalance(req BalanceCheckRequest) (BalanceCheckResp
 	defer cancel()
 
 	addr := common.HexToAddress(req.Address)
-	balance, err := client.BalanceAt(ctx, addr, nil)
+	var balance *big.Int
+	if req.Token != "" {
+		if !common.IsHexAddress(req.Token) {
+			return response, fmt.Errorf("invalid token contract address: %s", req.Token)
+		}
+		balance, err = erc20BalanceOf(ctx, client, common.HexToAddress(req.Token), addr)
+	} else {
+		balance, err = client.BalanceAt(ctx, addr, nil)
+	}
 	if err != nil {
 		return response, fmt.Errorf("failed to get balance: %v", err)
 	}
