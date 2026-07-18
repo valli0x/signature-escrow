@@ -180,12 +180,14 @@ func (c *Client) sendEthereumTransaction(req SendTransactionRequest) (SendTransa
 		}
 	}
 
-	nodeURL := req.NodeURL
-	if nodeURL == "" {
+	nodeURL := ""
+	switch {
+	case req.NodeURL != "":
+		nodeURL = req.NodeURL
+	case c.env.EthereumRPC != "":
 		nodeURL = c.env.EthereumRPC
-		if nodeURL == "" {
-			nodeURL = "https://ethereum-rpc.publicnode.com"
-		}
+	default:
+		nodeURL = "https://ethereum-rpc.publicnode.com"
 	}
 
 	ethClient, err := ethclient.Dial(nodeURL)

@@ -80,6 +80,8 @@ func (c *Client) routes() *chi.Mux {
 				r.Post("/send", c.sendWithdrawalTx())
 				r.Post("/accept", c.acceptWithdrawalTx())
 			})
+
+			r.Post("/sig/ethereum", c.sigToEthereum())
 		})
 	})
 

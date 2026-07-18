@@ -59,8 +59,14 @@ type AcceptWithdrawalTxRequest struct {
 type AcceptWithdrawalTxResponse struct {
 	Status            string `json:"status"`
 	CompleteSignature string `json:"complete_signature"`
-	Message           string `json:"message"`
-	PresignRotated    bool   `json:"presign_rotated"`
+	// EscrowSignature is the SAME signature in CMP-native encoding
+	// ([33B R point][32B S scalar]) — the ONLY format the server's escrow
+	// validation.Validate can verify. It MUST be captured BEFORE SigEthereum,
+	// which negates S in place (low-s) and thereby breaks the point-equality
+	// check in multi-party-sig's Verify.
+	EscrowSignature string `json:"escrow_signature,omitempty"`
+	Message         string `json:"message"`
+	PresignRotated  bool   `json:"presign_rotated"`
 }
 
 // sendWithdrawalTx initiates the sender half of an MPC withdrawal signature.
@@ -376,6 +382,12 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 				return
 			}
 
+			escrowSig, err := mpccmp.GetSigByte(sig)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get escrow signature bytes: %v", err))
+				return
+			}
+
 			sigEthereum, err := mpccmp.SigEthereum(sig)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to get signature bytes: %v", err))
@@ -383,6 +395,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			}
 
 			completeSignature := hex.EncodeToString(sigEthereum)
+			escrowSignature := hex.EncodeToString(escrowSig)
 
 			go c.rotateECDSAPresign(name, myid, another, tx.HashTx, config)
 
@@ -398,6 +411,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			response := AcceptWithdrawalTxResponse{
 				Status:            "completed",
 				CompleteSignature: completeSignature,
+				EscrowSignature:   escrowSignature,
 				Message:           "Another complete signature of the withdrawal transaction",
 				PresignRotated:    false,
 			}
@@ -442,6 +456,7 @@ func (c *Client) acceptWithdrawalTx() http.HandlerFunc {
 			respondOk(w, AcceptWithdrawalTxResponse{
 				Status:            "completed",
 				CompleteSignature: hex.EncodeToString(sig),
+				EscrowSignature:   hex.EncodeToString(sig),
 				Message:           "FROST signature completed",
 			})
 

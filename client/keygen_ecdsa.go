@@ -176,7 +176,9 @@ func (c *Client) keygenECDSA() http.HandlerFunc {
 			SessionID: req.SessionID,
 		}
 		metaB, _ := cbor.Marshal(meta)
-		c.stor.Put(context.Background(), storageBase+"/meta", metaB)
+		if err := c.stor.Put(context.Background(), storageBase+"/meta", metaB); err != nil {
+			c.logger.Error("Failed to save metadata", "error", err)
+		}
 
 		c.logger.Info("ECDSA keygen completed", "address", address, "network", req.Network, "index", req.Index)
 
