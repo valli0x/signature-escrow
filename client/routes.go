@@ -62,6 +62,7 @@ func (c *Client) routes() *chi.Mux {
 				r.Post("/hash", c.createTxHash())
 				r.Post("/send", c.sendTransaction())
 				r.Post("/decode", c.decodeTx())
+				r.Get("/gas-price", c.gasPrice())
 			})
 
 			r.Route("/aliases", func(r chi.Router) {

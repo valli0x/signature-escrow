@@ -258,3 +258,41 @@ func (c *Client) decodeTx() http.HandlerFunc {
 		respondOk(w, out)
 	}
 }
+
+type GasPriceResponse struct {
+	Network  string `json:"network"`
+	GasPrice string `json:"gas_price"` // wei
+}
+
+// gasPrice returns the current suggested gas price (wei) for Ethereum, so the
+// app can reserve gas when computing a "Max" native-ETH amount.
+//
+// @Summary      Suggested gas price
+// @Tags         tx
+// @Produce      json
+// @Param        network  query  string  false  "eth (default)"
+// @Success      200      {object}  GasPriceResponse
+// @Failure      500      {object}  ErrorResponse
+// @Router       /v1/tx/gas-price [get]
+func (c *Client) gasPrice() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rpcURL := c.env.EthereumRPC
+		if rpcURL == "" {
+			rpcURL = "https://ethereum-rpc.publicnode.com"
+		}
+		ec, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("rpc dial: %w", err))
+			return
+		}
+		defer ec.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		gp, err := ec.SuggestGasPrice(ctx)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("gas price: %w", err))
+			return
+		}
+		respondOk(w, GasPriceResponse{Network: "eth", GasPrice: gp.String()})
+	}
+}
